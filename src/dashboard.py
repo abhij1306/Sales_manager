@@ -7,71 +7,63 @@ def render_dashboard():
     
     conn = get_connection()
     
-    # Real metrics from database
+    # Metrics
     total_pos = conn.execute("SELECT COUNT(*) FROM purchase_orders").fetchone()[0]
     total_value = conn.execute("SELECT SUM(po_value) FROM purchase_orders").fetchone()[0] or 0
     total_dcs = conn.execute("SELECT COUNT(*) FROM delivery_challans").fetchone()[0]
     pending_items = conn.execute("SELECT COUNT(*) FROM purchase_order_items WHERE pending_qty > 0").fetchone()[0]
     
-    # Metrics Cards
+    # Compact Metrics Row
     col1, col2, col3, col4 = st.columns(4)
+    col1.metric("PO Value", f"₹{total_value:,.0f}")
+    col2.metric("POs", total_pos)
+    col3.metric("Pending", pending_items)
+    col4.metric("DCs", total_dcs)
     
+    st.divider()
+    
+    # Quick Actions
+    st.caption("**Quick Actions**")
+    col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown(f"""
-        <div class="card">
-            <div class="metric-label">Total PO Value</div>
-            <div class="metric-value">₹{total_value:,.0f}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
+        if st.button("⬆ Upload PO", use_container_width=True, type="primary"):
+            st.session_state.nav = "Purchase Orders"
+            st.session_state.po_action = "list"
+            st.rerun()
     with col2:
-        st.markdown(f"""
-        <div class="card">
-             <div class="metric-label">Purchase Orders</div>
-             <div class="metric-value">{total_pos}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
+        if st.button("🚚 Create DC", use_container_width=True):
+            st.session_state.nav = "Delivery Challans"
+            st.rerun()
     with col3:
-        st.markdown(f"""
-        <div class="card">
-             <div class="metric-label">Pending Items</div>
-             <div class="metric-value">{pending_items}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col4:
-        st.markdown(f"""
-        <div class="card">
-             <div class="metric-label">Delivery Challans</div>
-             <div class="metric-value">{total_dcs}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
+        if st.button("📊 Reports", use_container_width=True):
+            st.session_state.nav = "Reports"
+            st.rerun()
     
-    st.markdown("---")
+    st.divider()
     
-    # Recent Purchase Orders
-    st.markdown("### Recent Purchase Orders")
+    # Recent POs (Compact)
+    st.caption("**Recent Orders**")
     
     recent_pos = conn.execute("""
-        SELECT po_number, po_date, supplier_name, po_value
+        SELECT po_number, po_date, po_status, po_value
         FROM purchase_orders
         ORDER BY created_at DESC
-        LIMIT 5
+        LIMIT 10
     """).fetchall()
     
     conn.close()
     
     if recent_pos:
-        df = pd.DataFrame(recent_pos, columns=['PO Number', 'Date', 'Supplier', 'Value'])
-        df['PO Number'] = 'PO-' + df['PO Number'].astype(str)
-        df['Value'] = df['Value'].apply(lambda x: f"₹{x:,.2f}" if x else "-")
+        data = []
+        for po in recent_pos:
+            data.append({
+                "PO": f"PO-{po[0]}",
+                "Date": po[1],
+                "Status": po[2] or "New",
+                "Value": f"₹{po[3]:,.0f}" if po[3] else "-"
+            })
         
-        st.dataframe(
-            df,
-            hide_index=True,
-            use_container_width=True
-        )
+        df = pd.DataFrame(data)
+        st.dataframe(df, hide_index=True, use_container_width=True, height=350)
     else:
-        st.info("No purchase orders found. Upload PO files to get started.")
+        st.info("No POs yet. Upload to get started.")

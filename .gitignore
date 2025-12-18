@@ -11,6 +11,7 @@ ENV/
 # Database
 *.db
 *.sqlite
+db/*.db
 
 # IDE
 .vscode/
@@ -22,8 +23,13 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Exports
+# Exports & Data
 exports/
+*.xls
+*.xlsx
+*.csv
+*.html
+*.pdf
 
 # Temp files
 *.tmp

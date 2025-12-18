@@ -14,22 +14,30 @@ A streamlined Purchase Order (PO) management system that automates data extracti
 
 ## System Architecture
 
-```
-Sales_Manager/
-├── app.py                 # Main Streamlit application
-├── scraper/               # PO data extraction
-│   ├── po_scraper.py     # HTML parsing logic
-│   └── ingest_po.py      # Database ingestion
-├── src/                   # UI components
-│   ├── dashboard/        # Dashboard view
-│   ├── po/              # PO management  
-│   ├── dc/              # Delivery Challan
-│   └── gst/             # GST Invoices
-├── migrations/          # Database schema
-│   └── v1_initial.sql   # Initial schema
-└── db/                  # SQLite database
-    └── business.db
+### Business Logic & Roles
+- **User (Supplier)**: The application is designed for the usage of the Supplier (e.g., **Senstographic**).
+- **Buyer**: The entities issuing the Purchase Orders (e.g., BHEL, NTPC).
+- **Data Mapping**:
+    - `supplier_name`: Extracted from PO, typically refers to the User (Self).
+    - `issuer_name` / `inspection_at`: Used to identify the Buyer/Consignee context.
+    - Application logic hides `supplier_name` in list views as it is redundant for the user.
 
+### Project Structure
+```
+sales-manager/
+├── app.py                 # Main entry point (Streamlit)
+├── config/
+│   └── database.py        # Database connection & init
+├── migrations/            # SQL Schema schema
+├── scraper/               # PO Extraction Logic
+│   ├── po_scraper.py      # BeautifulSoup extraction
+│   └── ingest_po.py       # DB Ingestion service
+├── src/                   # UI Modules
+│   ├── dashboard.py       # Main Dashboard
+│   ├── po/                # PO List & Detail Views
+│   ├── dc/                # DC Creation & List
+│   └── reports/           # Analysis views
+└── db/                    # SQLite Database (Ignored)
 ```
 
 ## Data Flow
