@@ -29,11 +29,15 @@ export default function AlertsPanel() {
     const loadAlerts = async () => {
         try {
             const res = await fetch("http://localhost:8000/api/alerts/?acknowledged=false");
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
             const data = await res.json();
-            setAlerts(data);
+            setAlerts(Array.isArray(data) ? data : []);
             setLoading(false);
         } catch (err) {
             console.error("Failed to load alerts:", err);
+            setAlerts([]); // Set empty array on error
             setLoading(false);
         }
     };
