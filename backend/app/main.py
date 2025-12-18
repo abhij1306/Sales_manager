@@ -3,7 +3,7 @@ FastAPI Main Application
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import dashboard, po, dc, invoice, reports, search, alerts, reconciliation
+from app.routers import dashboard, po, dc, invoice, reports, search, alerts, reconciliation, po_notes
 
 app = FastAPI(
     title="Sales Manager API",
@@ -29,6 +29,7 @@ app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(search.router, prefix="/api/search", tags=["Search"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
 app.include_router(reconciliation.router, prefix="/api/reconciliation", tags=["Reconciliation"])
+app.include_router(po_notes.router, prefix="/api/po-notes", tags=["PO Notes"])
 
 @app.get("/")
 def root():
