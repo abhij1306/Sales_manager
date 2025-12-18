@@ -23,7 +23,6 @@ export default function PODetailPage() {
         fetch(`http://localhost:8000/api/po/${poId}`)
             .then(res => res.json())
             .then(data => {
-                console.log("PO Data:", data);
                 setData(data);
                 // Expand all items by default
                 if (data.items && data.items.length > 0) {
@@ -47,7 +46,7 @@ export default function PODetailPage() {
                 }
             })
             .catch(err => {
-                console.log("No DC found for this PO");
+                // No DC found for this PO is not an error, just means no DC exists
             });
     }, [poId]);
 
@@ -218,8 +217,8 @@ export default function PODetailPage() {
                                     }
                                 }}
                                 className={`px-4 py-2 text-white rounded-lg flex items-center gap-2 ${hasDC
-                                        ? 'bg-blue-600 hover:bg-blue-700'
-                                        : 'bg-green-600 hover:bg-green-700'
+                                    ? 'bg-blue-600 hover:bg-blue-700'
+                                    : 'bg-green-600 hover:bg-green-700'
                                     }`}
                             >
                                 <Plus className="w-4 h-4" />

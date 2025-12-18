@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import NavRail from "@/components/NavRail";
 import GlobalSearch from "@/components/GlobalSearch";
-import AlertsPanel from "@/components/AlertsPanel";
+// import AlertsPanel from "@/components/AlertsPanel"; // TODO: Enable when alerts functionality is ready
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -27,7 +27,7 @@ export default function RootLayout({
               <h2 className="text-lg font-semibold text-gray-900">Sales Manager</h2>
               <div className="flex items-center gap-4">
                 <GlobalSearch />
-                <AlertsPanel />
+                {/* <AlertsPanel /> */} {/* TODO: Enable when alerts functionality is ready */}
               </div>
             </header>
             <main className="flex-1 overflow-auto">

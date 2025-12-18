@@ -87,7 +87,7 @@ export default function DashboardPage() {
         <div className="cursor-default">
           <KpiCard
             title="Total PO Value"
-            value={`₹${summary.total_po_value.toLocaleString()}`}
+            value={`₹${(summary.total_po_value ?? 0).toLocaleString()}`}
             icon={<TrendingUp className="w-5 h-5" />}
             iconBg="bg-orange-100"
             iconColor="text-orange-600"
@@ -113,8 +113,8 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${item.type === "PO" ? "bg-blue-100" :
-                        item.type === "DC" ? "bg-green-100" :
-                          "bg-purple-100"
+                      item.type === "DC" ? "bg-green-100" :
+                        "bg-purple-100"
                       }`}>
                       {item.type === "PO" && <FileText className="w-5 h-5 text-blue-600" />}
                       {item.type === "DC" && <Truck className="w-5 h-5 text-green-600" />}

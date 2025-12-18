@@ -65,6 +65,21 @@ export interface InvoiceListItem {
     created_at: string | null;
 }
 
+export interface InvoiceCreate {
+    invoice_number: string;
+    invoice_date: string;
+    linked_dc_numbers: string;
+    po_numbers: string;
+    customer_gstin: string;
+    place_of_supply: string;
+    taxable_value: number;
+    cgst: number;
+    sgst: number;
+    igst: number;
+    total_invoice_value: number;
+    remarks: string;
+}
+
 // API Functions
 export const api = {
     // Dashboard

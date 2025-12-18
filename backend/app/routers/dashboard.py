@@ -43,7 +43,7 @@ def get_recent_activity(limit: int = 10, db: sqlite3.Connection = Depends(get_db
                 supplier_name,
                 po_value
             FROM purchase_orders
-            ORDER BY created_at DESC
+            ORDER BY po_date DESC
             LIMIT ?
         """, (limit,)).fetchall()
         
