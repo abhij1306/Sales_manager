@@ -71,17 +71,27 @@ def render_po_detail():
            # Prepare data for editor
             # specific handling for row factory
             row = dict(item)
+            # Case-insensitive lookup helper
+            def get_val(r, k):
+                for key in r.keys():
+                    if key.lower() == k.lower():
+                        return r[key]
+                return None
+
             data.append({
                 "id": row.get('id'),
-                "#": row.get('po_item_no'), # Added back for display
+                "#": row.get('po_item_no'), 
                 "Code": row.get('material_code'),
-                "Description": row.get('material_description'),
-                "DRG": row.get('drg_no') or "", # Safe access
+                "Description": get_val(row, 'material_description'), # Case insensitive
+                "DRG": row.get('drg_no') or "",
                 "Unit": row.get('unit'),
                 "Qty": row.get('ord_qty'),
                 "Rate": row.get('po_rate'),
                 "Value": row.get('item_value')
             })
+            # Debug info if missing (invisible in prod if working)
+            if not get_val(row, 'material_description'):
+                 print(f"DEBUG: Missing desc. Keys: {row.keys()}")
         df = pd.DataFrame(data)
     else:
         df = pd.DataFrame(columns=["id", "#", "Code", "Description", "DRG", "Unit", "Qty", "Rate", "Value"])
