@@ -71,13 +71,6 @@ def render_po_detail():
            # Prepare data for editor
             # specific handling for row factory
             row = dict(item)
-            
-            # --- DEBUG: Show keys for first item ---
-            if items.index(item) == 0:
-                st.info(f"DEBUG KEYS: {list(row.keys())}")
-                st.info(f"DEBUG DESC VAL: {row.get('material_description')}")
-            # ---------------------------------------
-
             # Case-insensitive lookup helper
             def get_val(r, k):
                 for key in r.keys():
