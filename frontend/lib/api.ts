@@ -7,6 +7,7 @@ export interface POListItem {
     supplier_name: string | null;
     po_value: number | null;
     amend_no: number;
+    po_status?: string;
     created_at: string | null;
 }
 

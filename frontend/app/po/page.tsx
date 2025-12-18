@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { api, POListItem } from "@/lib/api";
-import { Upload, X, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Upload, X, CheckCircle, XCircle, Loader2, Plus } from "lucide-react";
 
 interface UploadResult {
     filename: string;
@@ -20,6 +21,7 @@ interface BatchUploadResponse {
 }
 
 export default function POPage() {
+    const router = useRouter();
     const [pos, setPOs] = useState<POListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -101,8 +103,18 @@ export default function POPage() {
     return (
         <div className="p-8">
             <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl font-semibold text-gray-900">Purchase Orders</h1>
+                <div>
+                    <h1 className="text-2xl font-semibold text-gray-900">Purchase Orders</h1>
+                    <p className="text-sm text-gray-500 mt-1">Manage and track all purchase orders</p>
+                </div>
                 <div className="flex gap-3">
+                    <button
+                        onClick={() => router.push('/po/create')}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Create PO
+                    </button>
                     <label className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer flex items-center gap-2">
                         <Upload className="w-4 h-4" />
                         Select PO Files
@@ -246,8 +258,8 @@ export default function POPage() {
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-900">
                                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${po.po_status === 'Active' ? 'bg-green-100 text-green-800' :
-                                            po.po_status === 'Closed' ? 'bg-gray-100 text-gray-800' :
-                                                'bg-blue-100 text-blue-800'
+                                        po.po_status === 'Closed' ? 'bg-gray-100 text-gray-800' :
+                                            'bg-blue-100 text-blue-800'
                                         }`}>
                                         {po.po_status || 'New'}
                                     </span>
