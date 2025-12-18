@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { ArrowLeft, Edit2, Save, X, FileText } from "lucide-react";
 
 interface POItem {
@@ -32,15 +32,19 @@ interface PODetail {
     items: POItem[];
 }
 
-export default function PODetailPage({ params }: { params: { id: string } }) {
+export default function PODetailPage() {
     const router = useRouter();
+    const params = useParams();
+    const poId = params?.id as string;
     const [po, setPO] = useState<PODetail | null>(null);
     const [loading, setLoading] = useState(true);
     const [editMode, setEditMode] = useState(false);
     const [editedPO, setEditedPO] = useState<PODetail | null>(null);
 
     useEffect(() => {
-        fetch(`http://localhost:8000/api/po/${params.id}`)
+        if (!poId) return;
+
+        fetch(`http://localhost:8000/api/po/${poId}`)
             .then(res => res.json())
             .then(data => {
                 setPO(data);
@@ -51,13 +55,13 @@ export default function PODetailPage({ params }: { params: { id: string } }) {
                 console.error("Failed to load PO:", err);
                 setLoading(false);
             });
-    }, [params.id]);
+    }, [poId]);
 
     const handleSave = async () => {
-        if (!editedPO) return;
+        if (!editedPO || !poId) return;
 
         try {
-            const res = await fetch(`http://localhost:8000/api/po/${params.id}`, {
+            const res = await fetch(`http://localhost:8000/api/po/${poId}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(editedPO)
