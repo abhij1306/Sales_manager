@@ -1,40 +1,8 @@
--- Migration 004: Complete Schema Alignment with Sales_Manager
+-- Migration 004 (Revised): Add only truly missing components
 -- Date: 2025-12-18
--- Purpose: Add all missing fields from scraper, create delivery schedule table
+-- Purpose: Add delivery schedule table, HSN master, consignee master, and triggers
 
--- Add missing PO header fields
-ALTER TABLE purchase_orders ADD COLUMN enquiry_no TEXT;
-ALTER TABLE purchase_orders ADD COLUMN enquiry_date DATE;
-ALTER TABLE purchase_orders ADD COLUMN quotation_ref TEXT;
-ALTER TABLE purchase_orders ADD COLUMN quotation_date DATE;
-ALTER TABLE purchase_orders ADD COLUMN rc_no TEXT;
-ALTER TABLE purchase_orders ADD COLUMN order_type TEXT;
-ALTER TABLE purchase_orders ADD COLUMN po_status TEXT;
-ALTER TABLE purchase_orders ADD COLUMN tin_no TEXT;
-ALTER TABLE purchase_orders ADD COLUMN ecc_no TEXT;
-ALTER TABLE purchase_orders ADD COLUMN mpct_no TEXT;
-ALTER TABLE purchase_orders ADD COLUMN fob_value NUMERIC;
-ALTER TABLE purchase_orders ADD COLUMN ex_rate NUMERIC;
-ALTER TABLE purchase_orders ADD COLUMN currency TEXT;
-ALTER TABLE purchase_orders ADD COLUMN net_po_value NUMERIC;
-ALTER TABLE purchase_orders ADD COLUMN amend_no INTEGER DEFAULT 0;
-ALTER TABLE purchase_orders ADD COLUMN amend_1_date DATE;
-ALTER TABLE purchase_orders ADD COLUMN amend_2_date DATE;
-ALTER TABLE purchase_orders ADD COLUMN inspection_by TEXT;
-ALTER TABLE purchase_orders ADD COLUMN inspection_at TEXT;
-ALTER TABLE purchase_orders ADD COLUMN issuer_name TEXT;
-ALTER TABLE purchase_orders ADD COLUMN issuer_designation TEXT;
-ALTER TABLE purchase_orders ADD COLUMN issuer_phone TEXT;
-
--- Add missing item fields
-ALTER TABLE purchase_order_items ADD COLUMN drg_no TEXT;
-ALTER TABLE purchase_order_items ADD COLUMN mtrl_cat INTEGER;
-ALTER TABLE purchase_order_items ADD COLUMN rcd_qty NUMERIC DEFAULT 0;
-ALTER TABLE purchase_order_items ADD COLUMN item_value NUMERIC;
-ALTER TABLE purchase_order_items ADD COLUMN delivered_qty NUMERIC DEFAULT 0;
-ALTER TABLE purchase_order_items ADD COLUMN pending_qty NUMERIC;
-
--- Create delivery schedule table
+-- Create delivery schedule table (if not exists)
 CREATE TABLE IF NOT EXISTS purchase_order_deliveries (
     id TEXT PRIMARY KEY,
     po_item_id TEXT NOT NULL REFERENCES purchase_order_items(id) ON DELETE CASCADE,
@@ -49,7 +17,7 @@ CREATE TABLE IF NOT EXISTS purchase_order_deliveries (
 CREATE INDEX IF NOT EXISTS idx_pod_po_item ON purchase_order_deliveries(po_item_id);
 CREATE INDEX IF NOT EXISTS idx_pod_dely_date ON purchase_order_deliveries(dely_date);
 
--- Create HSN master
+-- Create HSN master (if not exists)
 CREATE TABLE IF NOT EXISTS hsn_master (
     hsn_code TEXT PRIMARY KEY,
     description TEXT,
@@ -57,7 +25,7 @@ CREATE TABLE IF NOT EXISTS hsn_master (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create consignee master
+-- Create consignee master (if not exists)
 CREATE TABLE IF NOT EXISTS consignee_master (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     consignee_name TEXT NOT NULL,
@@ -67,8 +35,12 @@ CREATE TABLE IF NOT EXISTS consignee_master (
     UNIQUE(consignee_name, consignee_gstin)
 );
 
+-- Drop existing triggers if they exist
+DROP TRIGGER IF EXISTS calculate_pending_qty_insert;
+DROP TRIGGER IF EXISTS calculate_pending_qty_update;
+
 -- Create triggers for auto-calculation of pending_qty
-CREATE TRIGGER IF NOT EXISTS calculate_pending_qty_insert
+CREATE TRIGGER calculate_pending_qty_insert
 AFTER INSERT ON purchase_order_items
 BEGIN
     UPDATE purchase_order_items 
@@ -76,7 +48,7 @@ BEGIN
     WHERE id = NEW.id;
 END;
 
-CREATE TRIGGER IF NOT EXISTS calculate_pending_qty_update
+CREATE TRIGGER calculate_pending_qty_update
 AFTER UPDATE ON purchase_order_items
 BEGIN
     UPDATE purchase_order_items 
@@ -85,5 +57,5 @@ BEGIN
 END;
 
 -- Update schema version
-INSERT INTO schema_version (version, description) 
-VALUES (4, 'Complete schema alignment with Sales_Manager - all 45 fields');
+INSERT OR IGNORE INTO schema_version (version, description) 
+VALUES (4, 'Add delivery schedule, HSN master, consignee master, and triggers');
