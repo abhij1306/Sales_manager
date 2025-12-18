@@ -8,10 +8,13 @@ def render_dashboard():
     conn = get_connection()
     
     # Metrics
-    total_pos = conn.execute("SELECT COUNT(*) FROM purchase_orders").fetchone()[0]
-    total_value = conn.execute("SELECT SUM(po_value) FROM purchase_orders").fetchone()[0] or 0
-    total_dcs = conn.execute("SELECT COUNT(*) FROM delivery_challans").fetchone()[0]
-    pending_items = conn.execute("SELECT COUNT(*) FROM purchase_order_items WHERE pending_qty > 0").fetchone()[0]
+    try:
+        total_pos = conn.execute("SELECT COUNT(*) FROM purchase_orders").fetchone()[0]
+        total_value = conn.execute("SELECT SUM(po_value) FROM purchase_orders").fetchone()[0] or 0
+        total_dcs = conn.execute("SELECT COUNT(*) FROM delivery_challans").fetchone()[0]
+        pending_items = conn.execute("SELECT COUNT(*) FROM purchase_order_items WHERE pending_qty > 0").fetchone()[0]
+    except Exception as e:
+        total_pos, total_value, total_dcs, pending_items = 0, 0, 0, 0
     
     # Compact Metrics Row
     col1, col2, col3, col4 = st.columns(4)
