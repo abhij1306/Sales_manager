@@ -106,3 +106,25 @@ def create_dc(dc: DCCreate, items: List[dict], db: sqlite3.Connection = Depends(
     except sqlite3.IntegrityError as e:
         raise HTTPException(status_code=400, detail=f"DC creation failed: {str(e)}")
 
+
+@router.get("/{dc_id}/invoice")
+def check_dc_has_invoice(dc_id: str, db: sqlite3.Connection = Depends(get_db)):
+    """Check if DC has an associated GST Invoice"""
+    try:
+        invoice_row = db.execute("""
+            SELECT id, invoice_number FROM gst_invoices 
+            WHERE dc_id = ? 
+            LIMIT 1
+        """, (dc_id,)).fetchone()
+        
+        if invoice_row:
+            return {
+                "has_invoice": True,
+                "invoice_id": invoice_row["id"],
+                "invoice_number": invoice_row["invoice_number"]
+            }
+        else:
+            return {"has_invoice": False}
+    except Exception as e:
+        # Table might not exist yet
+        return {"has_invoice": False}
