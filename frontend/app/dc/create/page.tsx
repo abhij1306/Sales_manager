@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { api } from "@/lib/api";
 
 // Mock PO Notes Templates (Replace with API fetch if needed)
 const PO_NOTE_TEMPLATES = [
@@ -16,19 +17,40 @@ interface DCItemRow {
     id: string; // Unique ID for the row (can be combination of item_no + lot_no)
     lot_no: string;
     description: string;
-    total_quantity: number;
+    ordered_qty: number;
+    already_dispatched: number;
+    remaining_qty: number; // This is the authoritative remaining qty
     dispatch_quantity: number;
     po_item_id: string;
 }
 
+// Form Field Helper - Moved outside to prevent re-creation
+const Field = ({ label, value, onChange, placeholder = "", disabled = false, type = "text" }: any) => (
+    <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+        <input
+            type={type}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            placeholder={placeholder}
+            disabled={disabled}
+            style={{ color: '#111827' }}
+            className="w-full px-3 py-2 text-sm border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium bg-white disabled:bg-gray-100"
+        />
+    </div>
+);
+
 export default function CreateDCPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const initialPoNumber = searchParams ? searchParams.get('po_number') : "";
+    const initialPoNumber = searchParams ? searchParams.get('po') : "";
 
     const [activeTab, setActiveTab] = useState("basic");
     const [poNumber, setPONumber] = useState(initialPoNumber || "");
     const [items, setItems] = useState<DCItemRow[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [poData, setPOData] = useState<any>(null); // Store PO header data
 
     // Notes Logic
     const [notes, setNotes] = useState<string[]>([]);
@@ -55,32 +77,54 @@ export default function CreateDCPage() {
     useEffect(() => {
         if (initialPoNumber) {
             handleLoadItems(initialPoNumber);
+            // Also fetch PO header data
+            fetchPOData(initialPoNumber);
         }
     }, [initialPoNumber]);
 
+    const fetchPOData = async (po: string) => {
+        try {
+            const data = await api.getPODetail(parseInt(po));
+            if (data && data.header) {
+                setPOData(data.header);
+            }
+        } catch (err) {
+            console.error("Failed to fetch PO data:", err);
+        }
+    };
+
     const handleLoadItems = async (po: string) => {
         if (!po) return;
-        try {
-            // Fetch PO Details to populate items
-            // Assuming endpoint exists or using reconciliation endpoint which returns items
-            const res = await fetch(`http://localhost:8000/api/reconciliation/po/${po}`);
-            if (res.ok) {
-                const data = await res.json();
 
-                // Transform PO Items into Layout: Lot No | Description | Total Qty
-                // If backend data doesn't have lots, we might mock or use item number
-                const mappedItems: DCItemRow[] = data.items.map((item: any, index: number) => ({
-                    id: `row-${index}`,
-                    lot_no: item.lot_no || (index + 1).toString(), // Fallback if no lot_no
-                    description: item.material_description,
-                    total_quantity: item.ord_qty, // Or pending_qty?
-                    dispatch_quantity: 0,
-                    po_item_id: item.id
-                }));
-                setItems(mappedItems);
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            // Use lot-wise reconciliation endpoint for better granularity
+            const data = await api.getReconciliationLots(parseInt(po));
+
+            // Transform lot-wise data into DC item rows
+            const mappedItems: DCItemRow[] = data.lots.map((lot: any, index: number) => ({
+                id: `${lot.po_item_id}-${lot.lot_no}`,
+                lot_no: lot.lot_no?.toString() || "",
+                description: lot.material_description || "",
+                ordered_qty: lot.ordered_qty || 0,
+                already_dispatched: lot.already_dispatched || 0,
+                remaining_qty: lot.remaining_qty || 0,
+                dispatch_quantity: 0,
+                po_item_id: lot.po_item_id
+            }));
+
+            setItems(mappedItems);
+
+            if (mappedItems.length === 0) {
+                setError("No items available for dispatch (all fully dispatched or no lots found)");
             }
         } catch (err) {
             console.error("Failed to load PO items", err);
+            setError(err instanceof Error ? err.message : "Failed to load PO items");
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -119,7 +163,9 @@ export default function CreateDCPage() {
             id: `new-${Date.now()}`,
             lot_no: "",
             description: "",
-            total_quantity: 0,
+            ordered_qty: 0,
+            already_dispatched: 0,
+            remaining_qty: 0,
             dispatch_quantity: 0,
             po_item_id: ""
         };
@@ -127,27 +173,63 @@ export default function CreateDCPage() {
     };
 
     const handleSave = async () => {
-        // Construct payload matchign backend expectation
-        // Note: Backend might need updates to accept this structure
-        alert("Save functionality coming soon!");
+        setError(null);
+
+        // Validate
+        if (!formData.dc_number || !formData.dc_date) {
+            setError("DC number and date are required");
+            return;
+        }
+
+        if (items.length === 0) {
+            setError("At least one item is required");
+            return;
+        }
+
+        // Check all items have dispatch quantity
+        const invalidItems = items.filter(item => !item.dispatch_quantity || item.dispatch_quantity <= 0);
+        if (invalidItems.length > 0) {
+            setError("All items must have a dispatch quantity greater than 0");
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            const dcPayload = {
+                dc_number: formData.dc_number,
+                dc_date: formData.dc_date,
+                po_number: poNumber ? parseInt(poNumber) : undefined,
+                consignee_name: formData.consignee_name,
+                consignee_address: formData.consignee_address,
+                vehicle_no: formData.vehicle_number,
+                lr_no: formData.lr_number,
+                transporter: formData.transporter_name,
+                mode_of_transport: formData.mode_of_transport,
+                eway_bill_no: formData.eway_bill_number,
+                remarks: notes.join("\n\n")
+            };
+
+            const itemsPayload = items.map(item => ({
+                po_item_id: item.po_item_id,
+                lot_no: item.lot_no ? parseInt(item.lot_no) : undefined,
+                dispatch_qty: item.dispatch_quantity,
+                hsn_code: null,
+                hsn_rate: null
+            }));
+
+            await api.createDC(dcPayload, itemsPayload);
+
+            // Success - navigate to DC detail or list
+            router.push(`/dc/${formData.dc_number}`);
+        } catch (err) {
+            console.error("Failed to create DC", err);
+            setError(err instanceof Error ? err.message : "Failed to create DC");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-
-    // Form Field Helper - Updated for visibility
-    const Field = ({ label, value, onChange, placeholder = "", disabled = false }: any) => (
-        <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-            <input
-                type="text"
-                value={value}
-                onChange={e => onChange(e.target.value)}
-                placeholder={placeholder}
-                disabled={disabled}
-                style={{ color: '#111827' }}
-                className="w-full px-3 py-2 text-sm border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium bg-white disabled:bg-gray-100"
-            />
-        </div>
-    );
 
     return (
         <div className="p-8 max-w-7xl mx-auto">
@@ -158,31 +240,82 @@ export default function CreateDCPage() {
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
-                        <h1 className="text-2xl font-semibold text-gray-900">Create Delivery Challan</h1>
+                        <h1 className="text-2xl font-semibold text-gray-900">
+                            Delivery Challan {formData.dc_number && `${formData.dc_number}`}
+                        </h1>
                         <p className="text-sm text-gray-500 mt-1">Generate DC from PO</p>
                     </div>
                 </div>
                 <div className="flex gap-3 items-center">
-                    {/* PO Search Bar */}
-                    <input
-                        type="text"
-                        value={poNumber}
-                        onChange={(e) => setPONumber(e.target.value)}
-                        className="w-48 px-3 py-2 border rounded-lg text-sm"
-                        placeholder="PO Number"
-                    />
+                    {/* PO Search Bar - Only show if not coming from PO */}
+                    {!initialPoNumber && (
+                        <>
+                            <input
+                                type="text"
+                                value={poNumber}
+                                onChange={(e) => setPONumber(e.target.value)}
+                                className="w-48 px-3 py-2 border-2 border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                placeholder="PO Number"
+                                disabled={isLoading}
+                            />
+                            <button
+                                onClick={() => handleLoadItems(poNumber)}
+                                disabled={isLoading || !poNumber}
+                                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isLoading ? "Loading..." : "Fetch Items"}
+                            </button>
+                        </>
+                    )}
                     <button
-                        onClick={() => handleLoadItems(poNumber)}
-                        className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm"
+                        onClick={() => {
+                            // Navigate to invoice create page with current DC number
+                            if (formData.dc_number) {
+                                router.push(`/invoice/create?dc=${formData.dc_number}`);
+                            } else {
+                                setError("Please enter a DC number first");
+                            }
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
                     >
-                        Fetch Items
+                        Create Invoice
                     </button>
-                    <button onClick={() => router.back()} className="px-4 py-2 border rounded-lg hover:bg-gray-50 text-gray-700">Cancel</button>
-                    <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                        Create DC
+                    <button
+                        onClick={handleSave}
+                        disabled={isLoading}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {isLoading ? "Saving..." : "Save"}
                     </button>
                 </div>
             </div>
+
+            {/* PO Reference - Show when coming from PO */}
+            {initialPoNumber && poData && (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm text-blue-600 font-medium">Creating DC from Purchase Order</p>
+                            <p className="text-xs text-blue-500 mt-1">
+                                PO Date: {poData.po_date || 'N/A'}
+                            </p>
+                        </div>
+                        <a
+                            href={`/po/${initialPoNumber}`}
+                            className="text-sm text-blue-600 hover:text-blue-800 font-medium underline"
+                        >
+                            PO #{initialPoNumber}
+                        </a>
+                    </div>
+                </div>
+            )}
+
+            {/* Error Display */}
+            {error && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-800 font-medium">{error}</p>
+                </div>
+            )}
 
             {/* Tabs */}
             <div className="mb-6">
@@ -294,10 +427,12 @@ export default function CreateDCPage() {
                 <table className="w-full">
                     <thead>
                         <tr className="bg-gray-50 text-left">
-                            <th className="px-4 py-2 font-medium text-gray-600 w-24">Lot No</th>
+                            <th className="px-4 py-2 font-medium text-gray-600 w-16">Lot</th>
                             <th className="px-4 py-2 font-medium text-gray-600">Description</th>
-                            <th className="px-4 py-2 font-medium text-gray-600 w-32">Total Qty</th>
-                            <th className="px-4 py-2 font-medium text-gray-600 w-32">Dispatch Qty</th>
+                            <th className="px-4 py-2 font-medium text-gray-600 w-24">Ordered</th>
+                            <th className="px-4 py-2 font-medium text-gray-600 w-24">Sent</th>
+                            <th className="px-4 py-2 font-medium text-gray-600 w-24">Rem.</th>
+                            <th className="px-4 py-2 font-medium text-gray-600 w-32">Dispatch</th>
                             <th className="px-4 py-2 w-16"></th>
                         </tr>
                     </thead>
@@ -311,6 +446,7 @@ export default function CreateDCPage() {
                                         onChange={(e) => handleItemChange(item.id, 'lot_no', e.target.value)}
                                         style={{ color: '#111827' }}
                                         className="w-full border-2 border-gray-400 rounded px-2 py-1 font-medium focus:border-blue-500"
+                                        readOnly
                                     />
                                 </td>
                                 <td className="p-2">
@@ -320,16 +456,17 @@ export default function CreateDCPage() {
                                         onChange={(e) => handleItemChange(item.id, 'description', e.target.value)}
                                         style={{ color: '#111827' }}
                                         className="w-full border-2 border-gray-400 rounded px-2 py-1 font-medium focus:border-blue-500"
+                                        readOnly
                                     />
                                 </td>
                                 <td className="p-2">
-                                    <input
-                                        type="number"
-                                        value={item.total_quantity}
-                                        onChange={(e) => handleItemChange(item.id, 'total_quantity', parseFloat(e.target.value))}
-                                        style={{ color: '#111827' }}
-                                        className="w-full border-2 border-gray-400 rounded px-2 py-1 bg-gray-50 font-medium focus:border-blue-500"
-                                    />
+                                    <div className="px-2 py-1 text-gray-600">{item.ordered_qty}</div>
+                                </td>
+                                <td className="p-2">
+                                    <div className="px-2 py-1 text-gray-600">{item.already_dispatched}</div>
+                                </td>
+                                <td className="p-2">
+                                    <div className="px-2 py-1 font-semibold text-gray-800">{item.remaining_qty}</div>
                                 </td>
                                 <td className="p-2">
                                     <input
@@ -339,6 +476,7 @@ export default function CreateDCPage() {
                                         style={{ color: '#111827' }}
                                         className="w-full border-2 border-gray-600 rounded px-2 py-1 font-bold focus:border-blue-600"
                                         placeholder="0"
+                                        max={item.remaining_qty}
                                     />
                                 </td>
                                 <td className="p-2 text-center">
@@ -352,7 +490,7 @@ export default function CreateDCPage() {
                             </tr>
                         )) : (
                             <tr>
-                                <td colSpan={5} className="text-center py-6 text-gray-500 italic">
+                                <td colSpan={7} className="text-center py-6 text-gray-500 italic">
                                     No items added. Fetch from PO or add manually.
                                 </td>
                             </tr>

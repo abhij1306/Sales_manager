@@ -44,9 +44,16 @@ export default function CreateInvoicePage() {
                         linked_dc_numbers: data.header.dc_number,
                         po_numbers: data.header.po_number?.toString() || '',
                         customer_gstin: data.header.consignee_gstin || '',
-                        // Improve this: Fetch basic value from items if possible, or leave 0
-                        taxable_value: 0
                     }));
+                }
+                // Auto-calculate taxable value from items
+                if (data.items) {
+                    const totalTaxable = data.items.reduce((acc: number, item: any) => {
+                        const qty = item.dispatch_qty || 0;
+                        const rate = item.po_rate || 0;
+                        return acc + (qty * rate);
+                    }, 0);
+                    setFormData(prev => ({ ...prev, taxable_value: totalTaxable }));
                 }
                 setLoading(false);
             })
@@ -83,45 +90,12 @@ export default function CreateInvoicePage() {
 
         setSaving(true);
         try {
-            const payload = {
-                ...formData,
-                linked_dc_numbers: formData.linked_dc_numbers,
-                // Convert to array of strings for the backend API which expects `dc_numbers` separately?
-                // Looking at router: create_invoice(invoice: InvoiceCreate, dc_numbers: List[str])
-                // We need to send both the InvoiceCreate object AND dc_numbers query arg? 
-                // Or maybe the router expects JSON body with both?
-                // Let's check router signature again.
-            };
+            // Parse DC numbers
+            const dcNumbers = formData.linked_dc_numbers.split(',').map(s => s.trim()).filter(Boolean);
 
-            // Looking at backend/app/routers/invoice.py:
-            // def create_invoice(invoice: InvoiceCreate, dc_numbers: List[str], ...)
-            // This usually implies `invoice` is body, `dc_numbers` is QUERY param if not in body.
-            // But FastAPI allows mixed body. Let's assume we send JSON: { ...invoice_fields, dc_numbers: [...] } 
+            // Call API
+            await api.createInvoice(formData, dcNumbers);
 
-            // Correction: Pydantic model InvoiceCreate DOES NOT have `dc_numbers` list, it has `linked_dc_numbers` string.
-            // But the function arg has `dc_numbers: List[str]`. 
-            // This likely means `dc_numbers` is a separate body field or query param. 
-            // Safest bet for Post is JSON body. Let's send everything in body and see.
-            // Wait, if I send JSON body, Pydantic parses `invoice`. `dc_numbers` must be extra field.
-
-            // Let's construct body:
-            const body = {
-                ...formData,
-                dc_numbers: formData.linked_dc_numbers.split(',').map(s => s.trim()).filter(Boolean)
-            };
-
-            const response = await fetch('http://localhost:8000/api/invoice/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.detail || 'Failed to create invoice');
-            }
-
-            const result = await response.json();
             alert('Invoice Created Successfully!');
             router.push('/invoice'); // Redirect to list
         } catch (err: any) {
@@ -171,7 +145,7 @@ export default function CreateInvoicePage() {
                     type="number"
                     value={formData[field as keyof typeof formData] || ''}
                     onChange={(e) => handleNumberChange(field, e.target.value)}
-                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-right"
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-right text-gray-900"
                 />
             </div>
         </div>

@@ -141,8 +141,20 @@ class InvoiceListItem(BaseModel):
     invoice_number: str
     invoice_date: str
     po_numbers: Optional[str] = None
+    linked_dc_numbers: Optional[str] = None  # Added
+    customer_gstin: Optional[str] = None     # Added
+    taxable_value: Optional[float] = None    # Added
     total_invoice_value: Optional[float] = None
     created_at: Optional[str] = None
+
+class InvoiceStats(BaseModel):
+    """Invoice Page KPIs"""
+    total_invoiced: float
+    pending_payments: float
+    gst_collected: float
+    total_invoiced_change: float  # Percentage change 
+    pending_payments_count: int
+    gst_collected_change: float
 
 # ============================================================
 # DASHBOARD MODELS

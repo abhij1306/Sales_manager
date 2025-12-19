@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ArrowLeft, Edit2, Save, X, FileText, Plus, Trash2 } from "lucide-react";
+import { api } from "@/lib/api";
 
 // Mock PO Notes Templates
 const PO_NOTE_TEMPLATES = [
@@ -16,8 +17,10 @@ interface DCItemRow {
     id: string;
     lot_no: string;
     description: string;
-    total_quantity: number;
+    ordered_qty: number;
+    remaining_post_dc: number;
     dispatch_quantity: number;
+    po_item_id: string;
 }
 
 export default function DCDetailPage() {
@@ -29,7 +32,8 @@ export default function DCDetailPage() {
     const [editMode, setEditMode] = useState(false);
     const [activeTab, setActiveTab] = useState("basic");
     const [hasInvoice, setHasInvoice] = useState(false);
-    const [invoiceId, setInvoiceId] = useState<string | null>(null);
+    const [invoiceNumber, setInvoiceNumber] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     const [items, setItems] = useState<DCItemRow[]>([]);
     const [notes, setNotes] = useState<string[]>([]);
@@ -54,10 +58,11 @@ export default function DCDetailPage() {
     useEffect(() => {
         if (!dcId) return;
 
-        // Load DC data
-        fetch(`http://localhost:8000/api/dc/${dcId}`)
-            .then(res => res.json())
-            .then(data => {
+        const loadDCData = async () => {
+            try {
+                // Load DC data
+                const data = await api.getDCDetail(dcId);
+
                 if (data.header) {
                     setFormData({
                         dc_number: data.header.dc_number || "",
@@ -81,54 +86,53 @@ export default function DCDetailPage() {
                             id: `item-${idx}`,
                             lot_no: item.lot_no || (idx + 1).toString(),
                             description: item.material_description || "",
-                            total_quantity: item.ord_qty || 0,
-                            dispatch_quantity: item.dispatch_qty || 0
+                            ordered_qty: item.lot_ordered_qty || 0,
+                            remaining_post_dc: item.remaining_post_dc || 0,
+                            dispatch_quantity: item.dispatch_qty || 0,
+                            po_item_id: item.po_item_id
                         }));
                         setItems(mappedItems);
                     } else if (data.header.po_number) {
-                        fetchPOItems(data.header.po_number);
+                        await fetchPOItems(data.header.po_number);
                     }
 
                     if (data.header.remarks) {
                         setNotes([data.header.remarks]);
                     }
                 }
-                setLoading(false);
-            })
-            .catch(err => {
-                console.error("Failed to load DC:", err);
-                setLoading(false);
-            });
 
-        // Check if DC has Invoice
-        fetch(`http://localhost:8000/api/dc/${dcId}/invoice`)
-            .then(res => res.json())
-            .then(invoiceData => {
-                if (invoiceData && invoiceData.invoice_id) {
+                // Check if DC has Invoice
+                const invoiceData = await api.checkDCHasInvoice(dcId);
+                if (invoiceData && invoiceData.has_invoice) {
                     setHasInvoice(true);
-                    setInvoiceId(invoiceData.invoice_id);
+                    setInvoiceNumber(invoiceData.invoice_number);
                 }
-            })
-            .catch(err => {
-                // No invoice found for this DC is not an error
-            });
+
+                setLoading(false);
+            } catch (err) {
+                console.error("Failed to load DC:", err);
+                setError(err instanceof Error ? err.message : "Failed to load DC");
+                setLoading(false);
+            }
+        };
+
+        loadDCData();
     }, [dcId]);
 
     const fetchPOItems = async (poNumber: string) => {
         try {
-            const res = await fetch(`http://localhost:8000/api/reconciliation/po/${poNumber}`);
-            if (res.ok) {
-                const data = await res.json();
-                if (data.items) {
-                    const mappedItems = data.items.map((item: any, idx: number) => ({
-                        id: `item-${idx}`,
-                        lot_no: item.lot_no || (idx + 1).toString(),
-                        description: item.material_description || "",
-                        total_quantity: item.ord_qty || 0,
-                        dispatch_quantity: 0
-                    }));
-                    setItems(mappedItems);
-                }
+            const data = await api.getReconciliation(parseInt(poNumber));
+            if (data.items) {
+                const mappedItems = data.items.map((item: any, idx: number) => ({
+                    id: `item-${idx}`,
+                    lot_no: item.lot_no || (idx + 1).toString(),
+                    description: item.material_description || "",
+                    ordered_qty: item.ordered_qty || 0,
+                    remaining_post_dc: item.remaining_qty || 0,
+                    dispatch_quantity: 0,
+                    po_item_id: item.po_item_id
+                }));
+                setItems(mappedItems);
             }
         } catch (err) {
             console.error("Failed to fetch PO items:", err);
@@ -166,19 +170,43 @@ export default function DCDetailPage() {
     };
 
     const handleAddItem = () => {
-        const newItem: DCItemRow = {
-            id: `new-${Date.now()}`,
-            lot_no: "",
-            description: "",
-            total_quantity: 0,
-            dispatch_quantity: 0
-        };
-        setItems([...items, newItem]);
+        alert("Adding items to existing DC is mostly restricted to existing PO lots. Please create new DC for new items or ensure you map PO Item ID correctly.");
+        // For now, disable add row in edit mode to avoid complexity of selecting PO items
     };
 
-    const handleSave = () => {
-        alert('Save functionality coming soon');
-        setEditMode(false);
+    const handleSave = async () => {
+        try {
+            setLoading(true);
+            const dcPayload = {
+                dc_number: formData.dc_number,
+                dc_date: formData.dc_date,
+                po_number: formData.po_number ? parseInt(formData.po_number) : undefined,
+                consignee_name: formData.consignee_name,
+                consignee_address: formData.consignee_address,
+                vehicle_no: formData.vehicle_number,
+                lr_no: formData.lr_number,
+                transporter: formData.transporter_name,
+                mode_of_transport: formData.mode_of_transport,
+                eway_bill_number: formData.eway_bill_number,
+                remarks: notes.join("\n\n")
+            };
+
+            const itemsPayload = items.map(item => ({
+                po_item_id: item.po_item_id,
+                lot_no: item.lot_no ? parseInt(item.lot_no) : undefined,
+                dispatch_qty: item.dispatch_quantity
+            }));
+
+            await api.updateDC(dcId, dcPayload, itemsPayload);
+            alert("DC updated successfully");
+            setEditMode(false);
+            window.location.reload(); // Reload to refresh data
+        } catch (err: any) {
+            console.error("Failed to update DC", err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (loading) {
@@ -251,8 +279,8 @@ export default function DCDetailPage() {
                         <>
                             <button
                                 onClick={() => {
-                                    if (hasInvoice && invoiceId) {
-                                        router.push(`/invoice/${invoiceId}`);
+                                    if (hasInvoice && invoiceNumber) {
+                                        router.push(`/invoice/${invoiceNumber}`);
                                     } else {
                                         router.push(`/invoice/create?dc=${dcId}`);
                                     }
@@ -267,7 +295,9 @@ export default function DCDetailPage() {
                             </button>
                             <button
                                 onClick={() => setEditMode(true)}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                disabled={hasInvoice}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={hasInvoice ? "Cannot edit DC - already has invoice" : ""}
                             >
                                 <Edit2 className="w-4 h-4 inline mr-2" />
                                 Edit
@@ -390,10 +420,11 @@ export default function DCDetailPage() {
                 <table className="w-full">
                     <thead>
                         <tr className="bg-gray-50 text-left">
-                            <th className="px-4 py-2 font-medium text-gray-600 w-24">Lot No</th>
+                            <th className="px-4 py-2 font-medium text-gray-600 w-16">Lot</th>
                             <th className="px-4 py-2 font-medium text-gray-600">Description</th>
-                            <th className="px-4 py-2 font-medium text-gray-600 w-32">Total Qty</th>
-                            <th className="px-4 py-2 font-medium text-gray-600 w-32">Dispatch Qty</th>
+                            <th className="px-4 py-2 font-medium text-gray-600 w-24">Ordered</th>
+                            <th className="px-4 py-2 font-medium text-gray-600 w-24">Rem.</th>
+                            <th className="px-4 py-2 font-medium text-gray-600 w-32">Dispatch</th>
                             {editMode && <th className="px-4 py-2 w-16"></th>}
                         </tr>
                     </thead>
@@ -408,6 +439,7 @@ export default function DCDetailPage() {
                                             onChange={(e) => handleItemChange(item.id, 'lot_no', e.target.value)}
                                             style={{ color: '#111827' }}
                                             className="w-full border-2 border-gray-400 rounded px-2 py-1 font-medium focus:border-blue-500"
+                                            readOnly
                                         />
                                     ) : (
                                         <div className="px-2 py-1">{item.lot_no}</div>
@@ -421,23 +453,17 @@ export default function DCDetailPage() {
                                             onChange={(e) => handleItemChange(item.id, 'description', e.target.value)}
                                             style={{ color: '#111827' }}
                                             className="w-full border-2 border-gray-400 rounded px-2 py-1 font-medium focus:border-blue-500"
+                                            readOnly
                                         />
                                     ) : (
                                         <div className="px-2 py-1">{item.description}</div>
                                     )}
                                 </td>
                                 <td className="p-2">
-                                    {editMode ? (
-                                        <input
-                                            type="number"
-                                            value={item.total_quantity}
-                                            onChange={(e) => handleItemChange(item.id, 'total_quantity', parseFloat(e.target.value))}
-                                            style={{ color: '#111827' }}
-                                            className="w-full border-2 border-gray-400 rounded px-2 py-1 bg-gray-50 font-medium focus:border-blue-500"
-                                        />
-                                    ) : (
-                                        <div className="px-2 py-1">{item.total_quantity}</div>
-                                    )}
+                                    <div className="px-2 py-1 text-gray-600">{item.ordered_qty}</div>
+                                </td>
+                                <td className="p-2">
+                                    <div className="px-2 py-1 font-semibold text-gray-800">{item.remaining_post_dc}</div>
                                 </td>
                                 <td className="p-2">
                                     {editMode ? (
@@ -466,7 +492,7 @@ export default function DCDetailPage() {
                             </tr>
                         )) : (
                             <tr>
-                                <td colSpan={editMode ? 5 : 4} className="text-center py-6 text-gray-500 italic">
+                                <td colSpan={editMode ? 6 : 5} className="text-center py-6 text-gray-500 italic">
                                     No items found.
                                 </td>
                             </tr>

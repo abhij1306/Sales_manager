@@ -1,5 +1,10 @@
 // API client for backend communication
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+console.log('[API Client] API_BASE_URL:', API_BASE_URL);
+
+// ============================================================
+// TYPES
+// ============================================================
 
 export interface POListItem {
     po_number: number;
@@ -45,8 +50,10 @@ export interface ActivityItem {
     type: string;
     number: string;
     date: string;
-    description: string;
-    created_at: string;
+    description?: string;
+    party?: string;
+    value?: number | null;
+    created_at?: string;
 }
 
 export interface DCListItem {
@@ -55,6 +62,23 @@ export interface DCListItem {
     po_number: number | null;
     consignee_name: string | null;
     created_at: string | null;
+}
+
+export interface DCCreate {
+    dc_number: string;
+    dc_date: string;
+    po_number?: number;
+    department_no?: number;
+    consignee_name?: string;
+    consignee_gstin?: string;
+    consignee_address?: string;
+    inspection_company?: string;
+    eway_bill_no?: string;
+    vehicle_no?: string;
+    lr_no?: string;
+    transporter?: string;
+    mode_of_transport?: string;
+    remarks?: string;
 }
 
 export interface InvoiceListItem {
@@ -80,62 +104,183 @@ export interface InvoiceCreate {
     remarks: string;
 }
 
-// API Functions
+// ============================================================
+// CENTRALIZED API FETCH
+// ============================================================
+
+/**
+ * Centralized API fetch function
+ * - Uses NEXT_PUBLIC_API_URL from env
+ * - Adds JSON headers
+ * - Parses error responses and extracts detail field
+ * - Logs failures centrally
+ * - Throws typed errors
+ */
+async function apiFetch<T>(
+    path: string,
+    options?: RequestInit
+): Promise<T> {
+    const url = `${API_BASE_URL}${path}`;
+
+    const defaultOptions: RequestInit = {
+        headers: {
+            'Content-Type': 'application/json',
+            ...options?.headers,
+        },
+        ...options,
+    };
+
+    try {
+        console.log(`[API] ${options?.method || 'GET'} ${path}`);
+
+        if (options?.body) {
+            console.log(`[API] Request body:`, JSON.parse(options.body as string));
+        }
+
+        const response = await fetch(url, defaultOptions);
+
+        if (!response.ok) {
+            // Try to parse error detail from backend
+            let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+
+            try {
+                const errorData = await response.json();
+                if (errorData.detail) {
+                    if (Array.isArray(errorData.detail)) {
+                        // Handle Pydantic validation errors (array of objects)
+                        errorMessage = errorData.detail
+                            .map((err: any) => `${err.loc.join('.')} - ${err.msg}`)
+                            .join('\n');
+                    } else if (typeof errorData.detail === 'object') {
+                        errorMessage = JSON.stringify(errorData.detail);
+                    } else {
+                        errorMessage = String(errorData.detail);
+                    }
+                }
+            } catch {
+                // If JSON parsing fails, use default message
+            }
+
+            console.error(`[API] Error: ${errorMessage}`, {
+                endpoint: path,
+                status: response.status,
+                method: options?.method || 'GET'
+            });
+
+            throw new Error(errorMessage);
+        }
+
+        const data = await response.json();
+        console.log(`[API] Success: ${path}`);
+        return data as T;
+
+    } catch (error) {
+        if (error instanceof Error) {
+            // Re-throw our formatted errors
+            throw error;
+        }
+
+        // Network errors or other issues
+        const networkError = new Error(`Network error: Failed to fetch ${path}`);
+        console.error(`[API] Network error:`, {
+            endpoint: path,
+            error: error
+        });
+        throw networkError;
+    }
+}
+
+// ============================================================
+// API FUNCTIONS
+// ============================================================
+
 export const api = {
     // Dashboard
     async getDashboardSummary(): Promise<DashboardSummary> {
-        const res = await fetch(`${API_BASE_URL}/api/dashboard/summary`);
-        if (!res.ok) throw new Error('Failed to fetch dashboard summary');
-        return res.json();
+        return apiFetch<DashboardSummary>('/api/dashboard/summary');
     },
 
     async getRecentActivity(limit = 10): Promise<ActivityItem[]> {
-        const res = await fetch(`${API_BASE_URL}/api/activity?limit=${limit}`);
-        if (!res.ok) throw new Error('Failed to fetch activity');
-        return res.json();
+        return apiFetch<ActivityItem[]>(`/api/activity?limit=${limit}`);
     },
 
     // Purchase Orders
     async listPOs(): Promise<POListItem[]> {
-        const res = await fetch(`${API_BASE_URL}/api/po/`);
-        if (!res.ok) throw new Error('Failed to fetch POs');
-        return res.json();
+        return apiFetch<POListItem[]>('/api/po/');
     },
 
     async getPODetail(poNumber: number): Promise<PODetail> {
-        const res = await fetch(`${API_BASE_URL}/api/po/${poNumber}`);
-        if (!res.ok) throw new Error('Failed to fetch PO detail');
-        return res.json();
+        return apiFetch<PODetail>(`/api/po/${poNumber}`);
     },
 
     async uploadPOHTML(file: File): Promise<any> {
         const formData = new FormData();
         formData.append('file', file);
-        const res = await fetch(`${API_BASE_URL}/api/po/upload`, {
+
+        // Note: FormData sets its own Content-Type with boundary
+        return apiFetch<any>('/api/po/upload', {
             method: 'POST',
             body: formData,
+            headers: {}, // Let browser set Content-Type for FormData
         });
-        if (!res.ok) throw new Error('Failed to upload PO');
-        return res.json();
+    },
+
+    // Reconciliation
+    async getReconciliation(poNumber: number): Promise<any> {
+        return apiFetch<any>(`/api/reconciliation/po/${poNumber}`);
+    },
+
+    async getReconciliationLots(poNumber: number): Promise<any> {
+        return apiFetch<any>(`/api/reconciliation/po/${poNumber}/lots`);
     },
 
     // Delivery Challans
     async listDCs(poNumber?: number): Promise<DCListItem[]> {
         const url = poNumber
-            ? `${API_BASE_URL}/api/dc/?po=${poNumber}`
-            : `${API_BASE_URL}/api/dc/`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Failed to fetch DCs');
-        return res.json();
+            ? `/api/dc/?po=${poNumber}`
+            : '/api/dc/';
+        return apiFetch<DCListItem[]>(url);
+    },
+
+    async getDCDetail(dcNumber: string): Promise<any> {
+        return apiFetch<any>(`/api/dc/${dcNumber}`);
+    },
+
+    async createDC(dc: DCCreate, items: any[]): Promise<any> {
+        return apiFetch<any>('/api/dc/', {
+            method: 'POST',
+            body: JSON.stringify({ dc, items }),
+        });
+    },
+
+    async checkDCHasInvoice(dcNumber: string): Promise<any> {
+        return apiFetch<any>(`/api/dc/${dcNumber}/invoice`);
+    },
+
+    async updateDC(dcNumber: string, dc: DCCreate, items: any[]): Promise<any> {
+        return apiFetch<any>(`/api/dc/${dcNumber}`, {
+            method: 'PUT',
+            body: JSON.stringify({ dc, items }),
+        });
     },
 
     // Invoices
     async listInvoices(poNumber?: number, dcNumber?: string): Promise<InvoiceListItem[]> {
-        let url = `${API_BASE_URL}/api/invoice/`;
+        let url = '/api/invoice/';
         if (poNumber) url += `?po=${poNumber}`;
         else if (dcNumber) url += `?dc=${dcNumber}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Failed to fetch invoices');
-        return res.json();
+        return apiFetch<InvoiceListItem[]>(url);
+    },
+
+    async getInvoiceDetail(invoiceNumber: string): Promise<any> {
+        return apiFetch<any>(`/api/invoice/${invoiceNumber}`);
+    },
+
+    async createInvoice(invoice: InvoiceCreate, dcNumbers: string[]): Promise<any> {
+        return apiFetch<any>('/api/invoice/', {
+            method: 'POST',
+            body: JSON.stringify({ ...invoice, dc_numbers: dcNumbers }),
+        });
     },
 };
+

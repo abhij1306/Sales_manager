@@ -452,7 +452,7 @@ export default function CreatePOPage() {
                                                                 <input
                                                                     type="number"
                                                                     value={delivery.dely_qty || 0}
-                                                                    className="w-20 border rounded px-1 py-0.5"
+                                                                    className="w-20 border rounded px-1 py-0.5 text-gray-900"
                                                                     onChange={(e) => {
                                                                         const newItems = [...items];
                                                                         const idxItem = newItems.findIndex(i => i.po_item_no === item.po_item_no);
@@ -465,7 +465,7 @@ export default function CreatePOPage() {
                                                                 <input
                                                                     type="date"
                                                                     value={delivery.dely_date || ''}
-                                                                    className="w-28 border rounded px-1 py-0.5"
+                                                                    className="w-28 border rounded px-1 py-0.5 text-gray-900"
                                                                     onChange={(e) => {
                                                                         const newItems = [...items];
                                                                         const idxItem = newItems.findIndex(i => i.po_item_no === item.po_item_no);
@@ -478,7 +478,7 @@ export default function CreatePOPage() {
                                                                 <input
                                                                     type="date"
                                                                     value={delivery.entry_allow_date || ''}
-                                                                    className="w-28 border rounded px-1 py-0.5"
+                                                                    className="w-28 border rounded px-1 py-0.5 text-gray-900"
                                                                     onChange={(e) => {
                                                                         const newItems = [...items];
                                                                         const idxItem = newItems.findIndex(i => i.po_item_no === item.po_item_no);
@@ -491,7 +491,7 @@ export default function CreatePOPage() {
                                                                 <input
                                                                     type="text"
                                                                     value={delivery.dest_code || ''}
-                                                                    className="w-20 border rounded px-1 py-0.5"
+                                                                    className="w-20 border rounded px-1 py-0.5 text-gray-900"
                                                                     onChange={(e) => {
                                                                         const newItems = [...items];
                                                                         const idxItem = newItems.findIndex(i => i.po_item_no === item.po_item_no);

@@ -181,7 +181,7 @@ export default function PODetailPage() {
                             Purchase Order {header.po_number}
                         </h1>
                         <p className="text-sm text-gray-500 mt-1">
-                            Date: {header.po_date} | Supplier: {header.supplier_name}
+                            Date: {header.po_date}
                         </p>
                     </div>
                 </div>

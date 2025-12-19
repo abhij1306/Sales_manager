@@ -4,48 +4,56 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import KpiCard from "@/components/KpiCard";
 import { FileText, Truck, Receipt, Plus, TrendingUp, Package } from "lucide-react";
-
-interface DashboardSummary {
-  total_pos: number;
-  total_dcs: number;
-  total_invoices: number;
-  total_po_value: number;
-}
-
-interface ActivityItem {
-  type: string;
-  number: string;
-  date: string;
-  party: string;
-  value: number | null;
-}
+import { api, DashboardSummary, ActivityItem } from "@/lib/api";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      fetch("http://localhost:8000/api/dashboard/summary").then(r => r.json()),
-      fetch("http://localhost:8000/api/activity?limit=10").then(r => r.json())
-    ]).then(([summaryData, activityData]) => {
-      setSummary(summaryData);
-      setActivity(activityData);
-      setLoading(false);
-    }).catch(err => {
-      console.error("Failed to load dashboard:", err);
-      setLoading(false);
-    });
+    const loadDashboard = async () => {
+      try {
+        const [summaryData, activityData] = await Promise.all([
+          api.getDashboardSummary(),
+          api.getRecentActivity(10)
+        ]);
+
+        setSummary(summaryData);
+        setActivity(activityData);
+        setLoading(false);
+      } catch (err) {
+        console.error("Failed to load dashboard:", err);
+        setError(err instanceof Error ? err.message : "Failed to load dashboard");
+        setLoading(false);
+      }
+    };
+
+    loadDashboard();
   }, []);
 
-  if (loading || !summary) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-gray-500">Loading dashboard...</div>
       </div>
     );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-sm text-red-800 font-medium">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!summary) {
+    return null;
   }
 
   return (
@@ -122,7 +130,6 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <div className="font-medium text-gray-900">{item.number}</div>
-                      <div className="text-sm text-gray-500">{item.party || "-"}</div>
                     </div>
                   </div>
                   <div className="text-right">

@@ -121,7 +121,7 @@ def extract_po_header(soup):
     for k, rx in {
         "PURCHASE ORDER": r"^PURCHASE\s+ORDER$",
         "PO DATE": r"PO\s+DATE",
-        "ENQUIRY": r"ENQUIRY",
+        "ENQUIRY": r"^ENQUIRY$",  # Made more specific - exact match only
         "SUPP CODE": r"SUPP\s+CODE",
         "ORD-TYPE": r"ORD-TYPE",
         "DVN": r"DVN",
@@ -141,6 +141,10 @@ def extract_po_header(soup):
         "SUPP NAME M/S": r"^SUPP\s+NAME\s+M/S$"
     }.items():
         header[k] = find_value(rx, prefer="below")
+    
+    # Validate ENQUIRY - reject if too long (likely grabbed "Important Note" text)
+    if header.get("ENQUIRY") and len(str(header["ENQUIRY"])) > 50:
+        header["ENQUIRY"] = ""  # Clear invalid data
 
     # Adjacent-only fields
     for k, rx in {
