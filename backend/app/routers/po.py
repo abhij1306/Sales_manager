@@ -4,7 +4,7 @@ CRUD operations and HTML upload/scraping
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from app.db import get_db
-from app.models import POListItem, PODetail, POHeader, POItem
+from app.models import POListItem, PODetail, POHeader, POItem, POStats
 from typing import List
 import sqlite3
 from bs4 import BeautifulSoup
@@ -13,26 +13,83 @@ from app.services.ingest_po import POIngestionService
 
 router = APIRouter()
 
+@router.get("/stats", response_model=POStats)
+def get_po_stats(db: sqlite3.Connection = Depends(get_db)):
+    """Get PO Page Statistics"""
+    try:
+        # Open Orders (Active)
+        open_count = db.execute("SELECT COUNT(*) FROM purchase_orders WHERE po_status = 'Active'").fetchone()[0]
+        
+        # Pending Approval (Mock logic for now, using 'New' status)
+        pending_count = db.execute("SELECT COUNT(*) FROM purchase_orders WHERE po_status = 'New' OR po_status IS NULL").fetchone()[0]
+        
+        # Total Value YTD (All POs for now)
+        value_row = db.execute("SELECT SUM(po_value) FROM purchase_orders").fetchone()
+        total_value = value_row[0] if value_row and value_row[0] else 0.0
+        
+        return {
+            "open_orders_count": open_count,
+            "pending_approval_count": pending_count,
+            "total_value_ytd": total_value,
+            "total_value_change": 0.0 # Placeholder
+        }
+    except Exception as e:
+        return {
+            "open_orders_count": 0, "pending_approval_count": 0, "total_value_ytd": 0.0, "total_value_change": 0
+        }
+
 @router.get("/", response_model=List[POListItem])
 def list_pos(db: sqlite3.Connection = Depends(get_db)):
-    """List all Purchase Orders"""
+    """List all Purchase Orders with quantity details"""
     rows = db.execute("""
-        SELECT po_number, po_date, supplier_name, po_value, amend_no, created_at
+        SELECT po_number, po_date, supplier_name, po_value, amend_no, po_status, created_at
         FROM purchase_orders
         ORDER BY created_at DESC
     """).fetchall()
     
-    return [
-        POListItem(
+    results = []
+    for row in rows:
+        po_num = row['po_number']
+        
+        # Calculate Total Ordered Quantity
+        ordered_row = db.execute("""
+            SELECT SUM(ord_qty) FROM purchase_order_items WHERE po_number = ?
+        """, (po_num,)).fetchone()
+        total_ordered = ordered_row[0] if ordered_row and ordered_row[0] else 0.0
+
+        # Calculate Total Dispatched Quantity
+        # Link via PO Items to get specific dispatches for this PO
+        dispatched_row = db.execute("""
+            SELECT SUM(dci.dispatch_qty) 
+            FROM delivery_challan_items dci
+            JOIN purchase_order_items poi ON dci.po_item_id = poi.id
+            WHERE poi.po_number = ?
+        """, (po_num,)).fetchone()
+        total_dispatched = dispatched_row[0] if dispatched_row and dispatched_row[0] else 0.0
+
+        # Calculate Pending
+        total_pending = max(0, total_ordered - total_dispatched)
+
+        # Fetch linked DC numbers for reference (optional, keeping for completeness if model expects it)
+        dc_rows = db.execute("SELECT dc_number FROM delivery_challans WHERE po_number = ?", (po_num,)).fetchall()
+        dc_nums = [r['dc_number'] for r in dc_rows]
+        linked_dcs_str = ", ".join(dc_nums) if dc_nums else None
+
+        results.append(POListItem(
             po_number=row["po_number"],
             po_date=row["po_date"],
             supplier_name=row["supplier_name"],
             po_value=row["po_value"],
             amend_no=row["amend_no"],
+            po_status=row["po_status"] or "New",
+            linked_dc_numbers=linked_dcs_str,
+            total_ordered_qty=total_ordered,
+            total_dispatched_qty=total_dispatched,
+            total_pending_qty=total_pending,
             created_at=row["created_at"]
-        )
-        for row in rows
-    ]
+        ))
+    
+    return results
 
 @router.get("/{po_number}", response_model=PODetail)
 def get_po_detail(po_number: int, db: sqlite3.Connection = Depends(get_db)):

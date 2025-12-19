@@ -3,7 +3,7 @@ Invoice Router
 """
 from fastapi import APIRouter, Depends, HTTPException
 from app.db import get_db, db_transaction
-from app.models import InvoiceListItem, InvoiceCreate
+from app.models import InvoiceListItem, InvoiceCreate, InvoiceStats
 from app.errors import bad_request, not_found, conflict
 from typing import List, Optional
 import sqlite3
@@ -18,30 +18,69 @@ class InvoiceCreateRequest(InvoiceCreate):
     dc_numbers: List[str]
 
 
+@router.get("/stats", response_model=InvoiceStats)
+def get_invoice_stats(db: sqlite3.Connection = Depends(get_db)):
+    """Get Invoice Page Statistics"""
+    try:
+        # Get total invoiced value
+        total_row = db.execute("SELECT SUM(total_invoice_value) FROM gst_invoices").fetchone()
+        total_invoiced = total_row[0] if total_row and total_row[0] else 0.0
+
+        # Get GST collected
+        gst_row = db.execute("SELECT SUM(cgst + sgst + igst) FROM gst_invoices").fetchone()
+        gst_collected = gst_row[0] if gst_row and gst_row[0] else 0.0
+
+        # Mock data for pending payments (would need a payments table/status for real data)
+        pending_payments = total_invoiced * 0.25  # Mock: 25% pending
+        pending_payments_count = 15 # Mock
+        
+        return {
+            "total_invoiced": total_invoiced,
+            "pending_payments": pending_payments,
+            "gst_collected": gst_collected,
+            "total_invoiced_change": 12.0,  # Mock
+            "gst_collected_change": 5.0,    # Mock
+            "pending_payments_count": pending_payments_count
+        }
+    except Exception as e:
+        logger.error(f"Error fetching stats: {e}")
+        return {
+            "total_invoiced": 0, "pending_payments": 0, "gst_collected": 0,
+            "total_invoiced_change": 0, "pending_payments_count": 0, "gst_collected_change": 0
+        }
+
 @router.get("/", response_model=List[InvoiceListItem])
-def list_invoices(po: Optional[int] = None, dc: Optional[str] = None, db: sqlite3.Connection = Depends(get_db)):
-    """List all Invoices, optionally filtered by PO or DC"""
+def list_invoices(po: Optional[int] = None, dc: Optional[str] = None, status: Optional[str] = None, db: sqlite3.Connection = Depends(get_db)):
+    """List all Invoices, optionally filtered by PO, DC, or Status"""
     
+    query = """
+        SELECT 
+            invoice_number, 
+            invoice_date, 
+            po_numbers, 
+            linked_dc_numbers,
+            customer_gstin,
+            taxable_value,
+            total_invoice_value, 
+            created_at
+        FROM gst_invoices
+        WHERE 1=1
+    """
+    params = []
+
     if po:
-        rows = db.execute("""
-            SELECT invoice_number, invoice_date, po_numbers, total_invoice_value, created_at
-            FROM gst_invoices
-            WHERE po_numbers LIKE ?
-            ORDER BY created_at DESC
-        """, (f"%{po}%",)).fetchall()
-    elif dc:
-        rows = db.execute("""
-            SELECT invoice_number, invoice_date, po_numbers, total_invoice_value, created_at
-            FROM gst_invoices
-            WHERE linked_dc_numbers LIKE ?
-            ORDER BY created_at DESC
-        """, (f"%{dc}%",)).fetchall()
-    else:
-        rows = db.execute("""
-            SELECT invoice_number, invoice_date, po_numbers, total_invoice_value, created_at
-            FROM gst_invoices
-            ORDER BY created_at DESC
-        """).fetchall()
+        query += " AND po_numbers LIKE ?"
+        params.append(f"%{po}%")
+    
+    if dc:
+        query += " AND linked_dc_numbers LIKE ?"
+        params.append(f"%{dc}%")
+    
+    # if status: ... (implement when status column exists)
+
+    query += " ORDER BY created_at DESC"
+
+    rows = db.execute(query, tuple(params)).fetchall()
     
     return [InvoiceListItem(**dict(row)) for row in rows]
 

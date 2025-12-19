@@ -12,8 +12,19 @@ export interface POListItem {
     supplier_name: string | null;
     po_value: number | null;
     amend_no: number;
-    po_status?: string;
+    po_status: string | null;
+    linked_dc_numbers: string | null;
+    total_ordered_qty: number;
+    total_dispatched_qty: number;
+    total_pending_qty: number;
     created_at: string | null;
+}
+
+export interface POStats {
+    open_orders_count: number;
+    pending_approval_count: number;
+    total_value_ytd: number;
+    total_value_change: number;
 }
 
 export interface POHeader {
@@ -40,20 +51,23 @@ export interface PODetail {
 }
 
 export interface DashboardSummary {
-    total_pos: number;
-    total_dcs: number;
-    total_invoices: number;
+    total_sales_month: number;
+    sales_growth: number;
+    pending_pos: number;
+    new_pos_today: number;
+    active_challans: number;
+    active_challans_growth: string;
     total_po_value: number;
+    po_value_growth: number;
 }
 
 export interface ActivityItem {
     type: string;
     number: string;
     date: string;
-    description?: string;
-    party?: string;
-    value?: number | null;
-    created_at?: string;
+    party: string;
+    amount: number | null;
+    status: string;
 }
 
 export interface DCListItem {
@@ -61,7 +75,17 @@ export interface DCListItem {
     dc_date: string;
     po_number: number | null;
     consignee_name: string | null;
+    status: string;
+    total_value: number;
     created_at: string | null;
+}
+
+export interface DCStats {
+    total_challans: number;
+    total_challans_change: number;
+    pending_delivery: number;
+    completed_delivery: number;
+    completed_change: number;
 }
 
 export interface DCCreate {
@@ -85,8 +109,21 @@ export interface InvoiceListItem {
     invoice_number: string;
     invoice_date: string;
     po_numbers: string | null;
+    linked_dc_numbers: string | null;
+    customer_gstin: string | null;
+    taxable_value: number | null;
     total_invoice_value: number | null;
     created_at: string | null;
+    status: 'Paid' | 'Pending' | 'Overdue'; // Mock for UI
+}
+
+export interface InvoiceStats {
+    total_invoiced: number;
+    pending_payments: number;
+    gst_collected: number;
+    total_invoiced_change: number;
+    pending_payments_count: number;
+    gst_collected_change: number;
 }
 
 export interface InvoiceCreate {
@@ -201,10 +238,14 @@ export const api = {
     },
 
     async getRecentActivity(limit = 10): Promise<ActivityItem[]> {
-        return apiFetch<ActivityItem[]>(`/api/activity?limit=${limit}`);
+        return apiFetch<ActivityItem[]>(`/api/dashboard/activity?limit=${limit}`);
     },
 
     // Purchase Orders
+    async getPOStats(): Promise<POStats> {
+        return apiFetch<POStats>('/api/po/stats');
+    },
+
     async listPOs(): Promise<POListItem[]> {
         return apiFetch<POListItem[]>('/api/po/');
     },
@@ -235,6 +276,10 @@ export const api = {
     },
 
     // Delivery Challans
+    async getDCStats(): Promise<DCStats> {
+        return apiFetch<DCStats>('/api/dc/stats');
+    },
+
     async listDCs(poNumber?: number): Promise<DCListItem[]> {
         const url = poNumber
             ? `/api/dc/?po=${poNumber}`
@@ -265,6 +310,10 @@ export const api = {
     },
 
     // Invoices
+    async getInvoiceStats(): Promise<InvoiceStats> {
+        return apiFetch<InvoiceStats>('/api/invoice/stats');
+    },
+
     async listInvoices(poNumber?: number, dcNumber?: string): Promise<InvoiceListItem[]> {
         let url = '/api/invoice/';
         if (poNumber) url += `?po=${poNumber}`;
@@ -281,6 +330,5 @@ export const api = {
             method: 'POST',
             body: JSON.stringify({ ...invoice, dc_numbers: dcNumbers }),
         });
-    },
+    }
 };
-

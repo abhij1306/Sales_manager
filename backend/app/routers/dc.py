@@ -3,7 +3,7 @@ Delivery Challan Router
 """
 from fastapi import APIRouter, Depends, HTTPException
 from app.db import get_db, db_transaction
-from app.models import DCListItem, DCCreate
+from app.models import DCListItem, DCCreate, DCStats
 from app.errors import bad_request, not_found, forbidden
 from typing import List, Optional
 import sqlite3
@@ -14,25 +14,83 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/stats", response_model=DCStats)
+def get_dc_stats(db: sqlite3.Connection = Depends(get_db)):
+    """Get DC Page Statistics"""
+    try:
+        # Total Challans
+        total_challans = db.execute("SELECT COUNT(*) FROM delivery_challans").fetchone()[0]
+        
+        # Completed (Linked to Invoice)
+        # Assuming DCs in gst_invoice_dc_links are "Completed" or "Delivered" state
+        completed = db.execute("""
+            SELECT COUNT(DISTINCT dc_number) FROM gst_invoice_dc_links
+        """).fetchone()[0]
+        
+        # Pending (Total - Completed)
+        pending = max(0, total_challans - completed)
+        
+        return {
+            "total_challans": total_challans,
+            "total_challans_change": 0.0,
+            "pending_delivery": pending,
+            "completed_delivery": completed,
+            "completed_change": 0.0
+        }
+    except Exception as e:
+         return {
+            "total_challans": 0, "total_challans_change": 0.0,
+            "pending_delivery": 0, "completed_delivery": 0, "completed_change": 0.0
+        }
+
+
 @router.get("/", response_model=List[DCListItem])
 def list_dcs(po: Optional[int] = None, db: sqlite3.Connection = Depends(get_db)):
     """List all Delivery Challans, optionally filtered by PO"""
     
-    if po:
-        rows = db.execute("""
-            SELECT dc_number, dc_date, po_number, consignee_name, created_at
-            FROM delivery_challans
-            WHERE po_number = ?
-            ORDER BY created_at DESC
-        """, (po,)).fetchall()
-    else:
-        rows = db.execute("""
-            SELECT dc_number, dc_date, po_number, consignee_name, created_at
-            FROM delivery_challans
-            ORDER BY created_at DESC
-        """).fetchall()
+    query = """
+        SELECT dc.dc_number, dc.dc_date, dc.po_number, dc.consignee_name, dc.created_at,
+               (SELECT COUNT(*) FROM gst_invoice_dc_links WHERE dc_number = dc.dc_number) as is_linked
+        FROM delivery_challans dc
+    """
+    params = []
     
-    return [DCListItem(**dict(row)) for row in rows]
+    if po:
+        query += " WHERE dc.po_number = ?"
+        params.append(po)
+        
+    query += " ORDER BY dc.created_at DESC"
+    
+    rows = db.execute(query, params).fetchall()
+    
+    results = []
+    for row in rows:
+        dc_num = row["dc_number"]
+        
+        # Calculate Value based on items * po_rate
+        value_row = db.execute("""
+            SELECT SUM(dci.dispatch_qty * poi.po_rate) as total_val
+            FROM delivery_challan_items dci
+            JOIN purchase_order_items poi ON dci.po_item_id = poi.id
+            WHERE dci.dc_number = ?
+        """, (dc_num,)).fetchone()
+        
+        total_value = value_row["total_val"] if value_row and value_row["total_val"] else 0.0
+        
+        # Determine Status
+        status = "Delivered" if row["is_linked"] > 0 else "Pending"
+        
+        results.append(DCListItem(
+            dc_number=row["dc_number"],
+            dc_date=row["dc_date"],
+            po_number=row["po_number"],
+            consignee_name=row["consignee_name"],
+            status=status,
+            total_value=total_value,
+            created_at=row["created_at"]
+        ))
+    
+    return results
 
 
 @router.get("/{dc_number}")

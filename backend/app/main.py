@@ -30,7 +30,7 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(po.router, prefix="/api/po", tags=["Purchase Orders"])
 app.include_router(dc.router, prefix="/api/dc", tags=["Delivery Challans"])
 app.include_router(invoice.router, prefix="/api/invoice", tags=["Invoices"])

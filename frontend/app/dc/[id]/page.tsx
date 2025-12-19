@@ -437,8 +437,7 @@ export default function DCDetailPage() {
                                             type="text"
                                             value={item.lot_no}
                                             onChange={(e) => handleItemChange(item.id, 'lot_no', e.target.value)}
-                                            style={{ color: '#111827' }}
-                                            className="w-full border-2 border-gray-400 rounded px-2 py-1 font-medium focus:border-blue-500"
+                                            className="w-full border-2 border-gray-400 rounded px-2 py-1 font-medium focus:border-blue-500 text-gray-900"
                                             readOnly
                                         />
                                     ) : (
@@ -451,8 +450,7 @@ export default function DCDetailPage() {
                                             type="text"
                                             value={item.description}
                                             onChange={(e) => handleItemChange(item.id, 'description', e.target.value)}
-                                            style={{ color: '#111827' }}
-                                            className="w-full border-2 border-gray-400 rounded px-2 py-1 font-medium focus:border-blue-500"
+                                            className="w-full border-2 border-gray-400 rounded px-2 py-1 font-medium focus:border-blue-500 text-gray-900"
                                             readOnly
                                         />
                                     ) : (
@@ -471,8 +469,7 @@ export default function DCDetailPage() {
                                             type="number"
                                             value={item.dispatch_quantity}
                                             onChange={(e) => handleItemChange(item.id, 'dispatch_quantity', parseFloat(e.target.value))}
-                                            style={{ color: '#111827' }}
-                                            className="w-full border-2 border-gray-600 rounded px-2 py-1 font-bold focus:border-blue-600"
+                                            className="w-full border-2 border-gray-600 rounded px-2 py-1 font-bold focus:border-blue-600 text-gray-900"
                                             placeholder="0"
                                         />
                                     ) : (

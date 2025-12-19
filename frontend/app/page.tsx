@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import KpiCard from "@/components/KpiCard";
-import { FileText, Truck, Receipt, Plus, TrendingUp, Package } from "lucide-react";
 import { api, DashboardSummary, ActivityItem } from "@/lib/api";
+import { FileText, Truck, Receipt, TrendingUp, Plus, MoveUpRight, Clock } from "lucide-react";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -34,6 +33,26 @@ export default function DashboardPage() {
     loadDashboard();
   }, []);
 
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'paid': return 'bg-green-100 text-green-700';
+      case 'pending': return 'bg-yellow-100 text-yellow-700';
+      case 'dispatched': return 'bg-blue-100 text-blue-700';
+      case 'active': return 'bg-green-100 text-green-700';
+      case 'new': return 'bg-blue-50 text-blue-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  const getTypeStyle = (type: string) => {
+    switch (type) {
+      case 'PO': return 'bg-blue-50 text-blue-700';
+      case 'Invoice': return 'bg-green-50 text-green-700';
+      case 'DC': return 'bg-purple-50 text-purple-700';
+      default: return 'bg-gray-50 text-gray-700';
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -57,57 +76,92 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Welcome back. Here's your daily overview.</p>
-      </div>
-
-      {/* KPI Cards - Clickable */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div onClick={() => router.push("/po")} className="cursor-pointer">
-          <KpiCard
-            title="Purchase Orders"
-            value={summary.total_pos}
-            icon={<FileText className="w-5 h-5" />}
-            iconBg="bg-blue-100"
-            iconColor="text-blue-600"
-          />
+    <div className="p-8 max-w-7xl mx-auto space-y-8">
+      <div className="mb-6 flex justify-between items-end">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-1">Welcome back, Admin. Here is your daily overview.</p>
         </div>
-        <div onClick={() => router.push("/dc")} className="cursor-pointer">
-          <KpiCard
-            title="Delivery Challans"
-            value={summary.total_dcs}
-            icon={<Truck className="w-5 h-5" />}
-            iconBg="bg-green-100"
-            iconColor="text-green-600"
-          />
-        </div>
-        <div onClick={() => router.push("/invoice")} className="cursor-pointer">
-          <KpiCard
-            title="Invoices"
-            value={summary.total_invoices}
-            icon={<Receipt className="w-5 h-5" />}
-            iconBg="bg-purple-100"
-            iconColor="text-purple-600"
-          />
-        </div>
-        <div className="cursor-default">
-          <KpiCard
-            title="Total PO Value"
-            value={`₹${(summary.total_po_value ?? 0).toLocaleString()}`}
-            icon={<TrendingUp className="w-5 h-5" />}
-            iconBg="bg-orange-100"
-            iconColor="text-orange-600"
-          />
+        <div className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 shadow-sm">
+          Today: {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Activity */}
-        <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Total Sales */}
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-start justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-500">Total Sales (Month)</p>
+            <h3 className="text-2xl font-bold text-gray-900 mt-2">
+              ₹{summary.total_sales_month.toLocaleString('en-IN')}
+            </h3>
+            <div className="flex items-center mt-2 text-green-600 text-sm font-medium">
+              <MoveUpRight className="w-3 h-3 mr-1" />
+              <span>+{summary.sales_growth}% vs last month</span>
+            </div>
+          </div>
+          <div className="p-3 bg-blue-50 rounded-lg">
+            <FileText className="w-6 h-6 text-blue-600" />
+          </div>
+        </div>
+
+        {/* Pending POs */}
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-start justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-500">Pending POs</p>
+            <h3 className="text-2xl font-bold text-gray-900 mt-2">
+              {summary.pending_pos} Orders
+            </h3>
+            <div className="flex items-center mt-2 text-orange-600 text-sm font-medium">
+              <Plus className="w-3 h-3 mr-1" />
+              <span>{summary.new_pos_today} new today</span>
+            </div>
+          </div>
+          <div className="p-3 bg-orange-50 rounded-lg">
+            <Clock className="w-6 h-6 text-orange-600" />
+          </div>
+        </div>
+
+        {/* Active Challans */}
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-start justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-500">Active Challans</p>
+            <h3 className="text-2xl font-bold text-gray-900 mt-2">
+              {summary.active_challans} Active
+            </h3>
+            <div className="flex items-center mt-2 text-gray-500 text-sm font-medium">
+              <span>{summary.active_challans_growth}</span>
+            </div>
+          </div>
+          <div className="p-3 bg-blue-50 rounded-lg">
+            <Truck className="w-6 h-6 text-blue-600" />
+          </div>
+        </div>
+
+        {/* Total PO Value */}
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-start justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-500">Total PO Value</p>
+            <h3 className="text-2xl font-bold text-gray-900 mt-2">
+              ₹{summary.total_po_value.toLocaleString('en-IN')}
+            </h3>
+            <div className="flex items-center mt-2 text-green-600 text-sm font-medium">
+              <TrendingUp className="w-3 h-3 mr-1" />
+              <span>+{summary.po_value_growth}% growth</span>
+            </div>
+          </div>
+          <div className="p-3 bg-purple-50 rounded-lg">
+            <Receipt className="w-6 h-6 text-purple-600" />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Recent Transactions Table */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Transactions</h2>
+            <h2 className="text-lg font-bold text-gray-900">Recent Transactions</h2>
             <button
               onClick={() => router.push("/reports")}
               className="text-sm text-blue-600 hover:text-blue-700 font-medium"
@@ -115,90 +169,86 @@ export default function DashboardPage() {
               View All
             </button>
           </div>
-          <div className="divide-y divide-gray-200">
-            {activity.map((item, idx) => (
-              <div key={idx} className="px-6 py-4 hover:bg-gray-50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${item.type === "PO" ? "bg-blue-100" :
-                      item.type === "DC" ? "bg-green-100" :
-                        "bg-purple-100"
-                      }`}>
-                      {item.type === "PO" && <FileText className="w-5 h-5 text-blue-600" />}
-                      {item.type === "DC" && <Truck className="w-5 h-5 text-green-600" />}
-                      {item.type === "INVOICE" && <Receipt className="w-5 h-5 text-purple-600" />}
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900">{item.number}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    {item.value && (
-                      <div className="font-medium text-gray-900">₹{item.value.toLocaleString()}</div>
-                    )}
-                    <div className="text-sm text-gray-500">{item.date}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full whitespace-nowrap">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Party Name</th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {activity.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 text-sm text-gray-500 font-medium">{item.date}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 rounded text-xs font-bold ${getTypeStyle(item.type)}`}>
+                        {item.type}-{item.number}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.party}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500 text-right font-medium">
+                      {item.amount ? `₹${item.amount.toLocaleString()}` : '-'}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(item.status)}`}>
+                        {item.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-          <div className="space-y-3">
-            <button
-              onClick={() => router.push("/po")}
-              className="w-full flex items-center gap-3 p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors text-left group"
-            >
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                <FileText className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <div className="font-medium text-gray-900">New Purchase Order</div>
-                <div className="text-sm text-gray-500">Upload PO HTML file</div>
-              </div>
-            </button>
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h2>
+            <div className="space-y-4">
+              <button
+                onClick={() => router.push("/po/create")}
+                className="w-full flex items-center gap-4 p-4 border border-gray-100 bg-white hover:bg-gray-50 rounded-xl transition-all shadow-sm hover:shadow-md group"
+              >
+                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <div className="font-bold text-gray-900">New Purchase Order</div>
+                  <div className="text-xs text-gray-500">Draft a new PO for suppliers</div>
+                </div>
+              </button>
 
-            <button
-              onClick={() => router.push("/dc")}
-              className="w-full flex items-center gap-3 p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors text-left group"
-            >
-              <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Truck className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <div className="font-medium text-gray-900">New Delivery Challan</div>
-                <div className="text-sm text-gray-500">Generate DC for dispatch</div>
-              </div>
-            </button>
+              <button
+                onClick={() => router.push("/dc/create")}
+                className="w-full flex items-center gap-4 p-4 border border-gray-100 bg-white hover:bg-gray-50 rounded-xl transition-all shadow-sm hover:shadow-md group"
+              >
+                <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Truck className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <div className="font-bold text-gray-900">New Delivery Challan</div>
+                  <div className="text-xs text-gray-500">Generate DC for dispatch</div>
+                </div>
+              </button>
 
-            <button
-              onClick={() => router.push("/invoice")}
-              className="w-full flex items-center gap-3 p-4 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors text-left group"
-            >
-              <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Receipt className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <div className="font-medium text-gray-900">Create Invoice</div>
-                <div className="text-sm text-gray-500">Create GST invoice for sales</div>
-              </div>
-            </button>
-
-            <button
-              onClick={() => router.push("/reports")}
-              className="w-full flex items-center gap-3 p-4 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors text-left group"
-            >
-              <div className="w-10 h-10 bg-orange-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Package className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <div className="font-medium text-gray-900">View Reports</div>
-                <div className="text-sm text-gray-500">Reconciliation & summaries</div>
-              </div>
-            </button>
+              <button
+                onClick={() => router.push("/invoice/create")}
+                className="w-full flex items-center gap-4 p-4 border border-gray-100 bg-white hover:bg-gray-50 rounded-xl transition-all shadow-sm hover:shadow-md group"
+              >
+                <div className="w-10 h-10 bg-green-100 text-green-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <div className="font-bold text-gray-900">Create Invoice</div>
+                  <div className="text-xs text-gray-500">Create GST invoice for sales</div>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -81,7 +81,19 @@ class POListItem(BaseModel):
     supplier_name: Optional[str] = None
     po_value: Optional[float] = None
     amend_no: Optional[int] = 0
+    po_status: Optional[str] = None
+    linked_dc_numbers: Optional[str] = None
+    total_ordered_qty: float = 0.0
+    total_dispatched_qty: float = 0.0
+    total_pending_qty: float = 0.0
     created_at: Optional[str] = None
+
+class POStats(BaseModel):
+    """PO Page KPIs"""
+    open_orders_count: int
+    pending_approval_count: int
+    total_value_ytd: float
+    total_value_change: float # Mock percentage change
 
 class PODetail(BaseModel):
     """Purchase Order Detail (Full)"""
@@ -115,7 +127,17 @@ class DCListItem(BaseModel):
     dc_date: str
     po_number: Optional[int] = None
     consignee_name: Optional[str] = None
+    status: Optional[str] = "Pending"
+    total_value: float = 0.0
     created_at: Optional[str] = None
+
+class DCStats(BaseModel):
+    """Delivery Challan KPIs"""
+    total_challans: int
+    total_challans_change: float = 0.0
+    pending_delivery: int
+    completed_delivery: int
+    completed_change: float = 0.0
 
 # ============================================================
 # INVOICE MODELS
@@ -162,10 +184,14 @@ class InvoiceStats(BaseModel):
 
 class DashboardSummary(BaseModel):
     """Dashboard KPIs"""
-    total_pos: int
-    total_dcs: int
-    total_invoices: int
-    total_po_value: Optional[float] = 0
+    total_sales_month: float
+    sales_growth: float
+    pending_pos: int
+    new_pos_today: int
+    active_challans: int
+    active_challans_growth: str # e.g. "Stable"
+    total_po_value: float
+    po_value_growth: float
 
 class ActivityItem(BaseModel):
     """Recent Activity Item"""
