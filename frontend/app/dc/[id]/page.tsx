@@ -217,10 +217,10 @@ export default function DCDetailPage() {
         );
     }
 
-    // Form Field Helper - Updated for visibility
+    // Form Field Helper - Updated for visibility and compactness
     const Field = ({ label, value, onChange, placeholder = "", disabled = false }: any) => (
         <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+            <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">{label}</label>
             <input
                 type="text"
                 value={value}
@@ -228,13 +228,13 @@ export default function DCDetailPage() {
                 placeholder={placeholder}
                 disabled={disabled || !editMode}
                 style={{ color: '#111827' }}
-                className="w-full px-3 py-2 text-sm border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium bg-white disabled:bg-gray-100"
+                className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-medium bg-white disabled:bg-gray-50"
             />
         </div>
     );
 
     return (
-        <div className="p-8 max-w-7xl mx-auto">
+        <div className="p-4 max-w-[98%] mx-auto">
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
@@ -242,18 +242,16 @@ export default function DCDetailPage() {
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
-                        <h1 className="text-2xl font-semibold text-gray-900">
+                        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-3">
                             Delivery Challan {formData.dc_number}
+                            {formData.po_number && (
+                                <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                    PO: <button onClick={() => router.push(`/po/${formData.po_number}`)} className="text-blue-600 hover:underline">{formData.po_number}</button>
+                                </span>
+                            )}
                         </h1>
-                        <p className="text-sm text-gray-500 mt-1">
-                            Date: {formData.dc_date} | PO: {formData.po_number ? (
-                                <button
-                                    onClick={() => router.push(`/po/${formData.po_number}`)}
-                                    className="text-blue-600 hover:text-blue-700 hover:underline font-medium"
-                                >
-                                    {formData.po_number}
-                                </button>
-                            ) : '-'}
+                        <p className="text-xs text-gray-500">
+                            Date: {formData.dc_date}
                         </p>
                     </div>
                 </div>
@@ -262,17 +260,17 @@ export default function DCDetailPage() {
                         <>
                             <button
                                 onClick={() => setEditMode(false)}
-                                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                                className="px-3 py-1.5 text-xs text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
                             >
-                                <X className="w-4 h-4 inline mr-2" />
+                                <X className="w-3 h-3 inline mr-1" />
                                 Cancel
                             </button>
                             <button
                                 onClick={handleSave}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                             >
-                                <Save className="w-4 h-4 inline mr-2" />
-                                Save Changes
+                                <Save className="w-3 h-3 inline mr-1" />
+                                Save
                             </button>
                         </>
                     ) : (
@@ -285,21 +283,21 @@ export default function DCDetailPage() {
                                         router.push(`/invoice/create?dc=${dcId}`);
                                     }
                                 }}
-                                className={`px-4 py-2 text-white rounded-lg flex items-center gap-2 ${hasInvoice
+                                className={`px-3 py-1.5 text-xs text-white rounded flex items-center gap-1.5 ${hasInvoice
                                     ? 'bg-blue-600 hover:bg-blue-700'
                                     : 'bg-green-600 hover:bg-green-700'
                                     }`}
                             >
-                                <FileText className="w-4 h-4" />
+                                <FileText className="w-3 h-3" />
                                 {hasInvoice ? 'View Invoice' : 'Create Invoice'}
                             </button>
                             <button
                                 onClick={() => setEditMode(true)}
                                 disabled={hasInvoice}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title={hasInvoice ? "Cannot edit DC - already has invoice" : ""}
                             >
-                                <Edit2 className="w-4 h-4 inline mr-2" />
+                                <Edit2 className="w-3 h-3 inline mr-1" />
                                 Edit
                             </button>
                         </>
@@ -308,28 +306,28 @@ export default function DCDetailPage() {
             </div>
 
             {/* Tabs */}
-            <div className="mb-6">
+            <div className="mb-4">
                 <div className="flex gap-1 border-b border-gray-200">
                     <button
                         onClick={() => setActiveTab('basic')}
-                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'basic' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-t border-t border-l border-r transition-colors ${activeTab === 'basic' ? 'bg-white border-gray-200 border-b-white text-blue-600 relative top-[1px]' : 'bg-gray-50 border-transparent text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         Basic Info
                     </button>
                     <button
                         onClick={() => setActiveTab('transport')}
-                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'transport' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-t border-t border-l border-r transition-colors ${activeTab === 'transport' ? 'bg-white border-gray-200 border-b-white text-blue-600 relative top-[1px]' : 'bg-gray-50 border-transparent text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         Transport Details
                     </button>
                 </div>
 
-                <div className="bg-white p-6 rounded-b-lg border border-gray-200 border-t-0 -mt-[1px]">
+                <div className="bg-white p-4 rounded-b border border-gray-200 border-t-0 -mt-[1px]">
                     {activeTab === 'basic' && (
                         <div className="space-y-6">
-                            <div className="grid grid-cols-2 gap-6">
+                            <div className="grid grid-cols-3 gap-6">
                                 <Field
                                     label="DC Number"
                                     value={formData.dc_number}
@@ -341,34 +339,35 @@ export default function DCDetailPage() {
                                     value={formData.dc_date}
                                     onChange={(v: string) => setFormData({ ...formData, dc_date: v })}
                                 />
-                            </div>
-                            <div className="grid grid-cols-2 gap-6">
+                                {/* Assuming Vehicle Number exists or can be added, otherwise leave empty slot or put other fields */}
+                                {/* Since user didn't show Vehicle Number in screenshot for detail, but likely wants 3 cols. 
+                                    I will put Supplier Phone here to maximize density */}
                                 <Field
                                     label="Supplier Phone No"
                                     value={formData.supplier_phone}
                                     onChange={(v: string) => setFormData({ ...formData, supplier_phone: v })}
                                 />
+
+                                {/* Row 2 */}
                                 <Field
                                     label="Supplier GSTIN"
                                     value={formData.supplier_gstin}
                                     onChange={(v: string) => setFormData({ ...formData, supplier_gstin: v })}
                                 />
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <Field
                                     label="Consignee Name"
                                     value={formData.consignee_name}
                                     onChange={(v: string) => setFormData({ ...formData, consignee_name: v })}
                                 />
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-600 mb-1">Consignee Address</label>
+                                <div className="col-span-1">
+                                    {/* Empty or Address? Address uses textarea usually, but here Field is input. */}
+                                    <div className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">Consignee Address</div>
                                     <textarea
                                         value={formData.consignee_address}
                                         onChange={(e) => setFormData({ ...formData, consignee_address: e.target.value })}
-                                        rows={3}
                                         disabled={!editMode}
-                                        style={{ color: '#111827' }}
-                                        className="w-full px-3 py-2 text-sm border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium disabled:bg-gray-100"
+                                        rows={2}
+                                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 text-gray-900 font-medium disabled:bg-gray-100"
                                     />
                                 </div>
                             </div>
@@ -407,25 +406,24 @@ export default function DCDetailPage() {
                 </div>
             </div>
 
-            {/* Items Table */}
-            <div className="bg-white rounded-lg border border-gray-200 mb-6 font-mono text-sm">
-                <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
+            <div className="bg-white rounded border border-gray-200 mb-4 font-mono text-xs">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-gray-50">
                     <h3 className="font-semibold text-gray-900">Items Dispatched</h3>
                     {editMode && (
-                        <button onClick={handleAddItem} className="text-blue-600 hover:text-blue-700 text-xs font-medium flex items-center">
-                            <Plus className="w-4 h-4 mr-1" /> Add Row
+                        <button onClick={handleAddItem} className="text-blue-600 hover:text-blue-700 text-[10px] font-medium flex items-center">
+                            <Plus className="w-3 h-3 mr-1" /> Add Row
                         </button>
                     )}
                 </div>
                 <table className="w-full">
                     <thead>
                         <tr className="bg-gray-50 text-left">
-                            <th className="px-4 py-2 font-medium text-gray-600 w-16">Lot</th>
-                            <th className="px-4 py-2 font-medium text-gray-600">Description</th>
-                            <th className="px-4 py-2 font-medium text-gray-600 w-24">Ordered</th>
-                            <th className="px-4 py-2 font-medium text-gray-600 w-24">Rem.</th>
-                            <th className="px-4 py-2 font-medium text-gray-600 w-32">Dispatch</th>
-                            {editMode && <th className="px-4 py-2 w-16"></th>}
+                            <th className="px-3 py-1 font-semibold text-gray-600 w-16 text-[10px] uppercase">Lot</th>
+                            <th className="px-3 py-1 font-semibold text-gray-600 text-[10px] uppercase">Description</th>
+                            <th className="px-3 py-1 font-semibold text-gray-600 w-24 text-[10px] uppercase">Ordered</th>
+                            <th className="px-3 py-1 font-semibold text-gray-600 w-24 text-[10px] uppercase">Rem.</th>
+                            <th className="px-3 py-1 font-semibold text-gray-600 w-32 text-[10px] uppercase">Dispatch</th>
+                            {editMode && <th className="px-3 py-1 w-16 text-[10px] uppercase"></th>}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
@@ -437,11 +435,11 @@ export default function DCDetailPage() {
                                             type="text"
                                             value={item.lot_no}
                                             onChange={(e) => handleItemChange(item.id, 'lot_no', e.target.value)}
-                                            className="w-full border-2 border-gray-400 rounded px-2 py-1 font-medium focus:border-blue-500 text-gray-900"
+                                            className="w-full border border-gray-300 rounded px-1 py-0.5 focus:border-blue-500 text-gray-900 text-xs"
                                             readOnly
                                         />
                                     ) : (
-                                        <div className="px-2 py-1">{item.lot_no}</div>
+                                        <div className="px-1 py-0.5">{item.lot_no}</div>
                                     )}
                                 </td>
                                 <td className="p-2">
@@ -450,11 +448,11 @@ export default function DCDetailPage() {
                                             type="text"
                                             value={item.description}
                                             onChange={(e) => handleItemChange(item.id, 'description', e.target.value)}
-                                            className="w-full border-2 border-gray-400 rounded px-2 py-1 font-medium focus:border-blue-500 text-gray-900"
+                                            className="w-full border border-gray-300 rounded px-1 py-0.5 focus:border-blue-500 text-gray-900 text-xs"
                                             readOnly
                                         />
                                     ) : (
-                                        <div className="px-2 py-1">{item.description}</div>
+                                        <div className="px-1 py-0.5">{item.description}</div>
                                     )}
                                 </td>
                                 <td className="p-2">
@@ -469,7 +467,7 @@ export default function DCDetailPage() {
                                             type="number"
                                             value={item.dispatch_quantity}
                                             onChange={(e) => handleItemChange(item.id, 'dispatch_quantity', parseFloat(e.target.value))}
-                                            className="w-full border-2 border-gray-600 rounded px-2 py-1 font-bold focus:border-blue-600 text-gray-900"
+                                            className="w-full border border-gray-400 rounded px-1 py-0.5 font-bold focus:border-blue-600 text-gray-900 text-xs"
                                             placeholder="0"
                                         />
                                     ) : (
@@ -499,10 +497,10 @@ export default function DCDetailPage() {
             </div>
 
             {/* PO Notes Section */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="mb-4">
-                    <h3 className="font-semibold text-gray-900">PO Notes</h3>
-                    <p className="text-xs text-gray-500">Select standard notes or add custom ones.</p>
+            <div className="bg-white rounded border border-gray-200 p-4">
+                <div className="mb-3">
+                    <h3 className="font-semibold text-gray-900 text-sm">PO Notes</h3>
+                    <p className="text-[10px] text-gray-500">Select standard notes or add custom ones.</p>
                 </div>
 
                 {editMode && (
@@ -538,7 +536,7 @@ export default function DCDetailPage() {
                                 rows={2}
                                 disabled={!editMode}
                                 style={{ color: '#111827' }}
-                                className="flex-1 border-2 border-gray-400 rounded-lg text-sm font-medium focus:ring-blue-500 focus:border-blue-500 p-3 disabled:bg-gray-50"
+                                className="flex-1 border border-gray-300 rounded text-xs focus:ring-blue-500 focus:border-blue-500 p-2 disabled:bg-gray-50"
                             />
                             {editMode && (
                                 <button

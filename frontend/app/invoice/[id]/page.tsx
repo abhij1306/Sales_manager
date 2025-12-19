@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeft, Edit2, Save, X, Printer, Truck } from "lucide-react";
+import { ArrowLeft, Edit2, Save, X, Printer, Truck, FileText } from "lucide-react";
 
 export default function InvoiceDetailPage() {
     const router = useRouter();
@@ -51,7 +51,7 @@ export default function InvoiceDetailPage() {
 
     const Field = ({ label, value, isCurrency = false }: { label: string; value: any; isCurrency?: boolean }) => (
         <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+            <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">{label}</label>
             <div className={`text-sm text-gray-900 ${isCurrency ? 'font-medium' : ''}`}>
                 {isCurrency && value !== null && value !== undefined
                     ? `₹${value.toLocaleString('en-IN')}`
@@ -61,7 +61,7 @@ export default function InvoiceDetailPage() {
     );
 
     return (
-        <div className="p-8 max-w-7xl mx-auto">
+        <div className="p-4 max-w-[98%] mx-auto">
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
@@ -72,47 +72,47 @@ export default function InvoiceDetailPage() {
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
-                        <h1 className="text-2xl font-semibold text-gray-900">
+                        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-3">
                             Invoice {header.invoice_number}
                         </h1>
-                        <p className="text-sm text-gray-500 mt-1">
-                            Date: {header.invoice_date} | Total: ₹{header.total_invoice_value?.toLocaleString()}
+                        <p className="text-xs text-gray-500">
+                            Date: {header.invoice_date}
                         </p>
                     </div>
                 </div>
                 <div className="flex gap-3">
                     <button
                         onClick={() => window.print()}
-                        className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+                        className="px-3 py-1.5 text-xs text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 flex items-center gap-1.5"
                     >
-                        <Printer className="w-4 h-4" />
+                        <Printer className="w-3 h-3" />
                         Print
                     </button>
                     {editMode ? (
                         <>
                             <button
                                 onClick={() => setEditMode(false)}
-                                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                                className="px-3 py-1.5 text-xs text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
                             >
-                                <X className="w-4 h-4 inline mr-2" />
+                                <X className="w-3 h-3 inline mr-1" />
                                 Cancel
                             </button>
                             <button
                                 onClick={() => {
                                     alert('Save functionality coming soon');
                                 }}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                             >
-                                <Save className="w-4 h-4 inline mr-2" />
-                                Save Changes
+                                <Save className="w-3 h-3 inline mr-1" />
+                                Save
                             </button>
                         </>
                     ) : (
                         <button
                             onClick={() => setEditMode(true)}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                         >
-                            <Edit2 className="w-4 h-4 inline mr-2" />
+                            <Edit2 className="w-3 h-3 inline mr-1" />
                             Edit
                         </button>
                     )}
@@ -123,21 +123,27 @@ export default function InvoiceDetailPage() {
                 {/* Left Column: Details */}
                 <div className="col-span-8 space-y-6">
                     {/* Basic Info */}
-                    <div className="bg-white rounded-lg border border-gray-200 p-6">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Invoice Information</h2>
-                        <div className="grid grid-cols-3 gap-6">
+                    <div className="bg-white rounded border border-gray-200 p-4">
+                        <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-blue-600" />
+                            Invoice Information
+                        </h2>
+                        <div className="grid grid-cols-3 gap-4">
                             <Field label="Invoice Number" value={header.invoice_number} />
                             <Field label="Invoice Date" value={header.invoice_date} />
                             <Field label="Place of Supply" value={header.place_of_supply} />
+
                             <Field label="PO Reference(s)" value={header.po_numbers} />
                             <Field label="Customer GSTIN" value={header.customer_gstin} />
+                            {/* Empty slot or add something else */}
+                            <div className="hidden md:block"></div>
                         </div>
                     </div>
 
                     {/* Linked DCs */}
-                    <div className="bg-white rounded-lg border border-gray-200 p-6">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            <Truck className="w-5 h-5 text-gray-500" />
+                    <div className="bg-white rounded border border-gray-200 p-4">
+                        <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                            <Truck className="w-4 h-4 text-blue-600" />
                             Linked Delivery Challans
                         </h2>
                         {linked_dcs && linked_dcs.length > 0 ? (
@@ -177,32 +183,38 @@ export default function InvoiceDetailPage() {
 
                     {/* Remarks */}
                     {header.remarks && (
-                        <div className="bg-white rounded-lg border border-gray-200 p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4">Remarks</h2>
-                            <div className="text-sm text-gray-900 whitespace-pre-line">{header.remarks}</div>
+                        <div className="bg-white rounded border border-gray-200 p-4">
+                            <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-blue-600" />
+                                Remarks
+                            </h2>
+                            <div className="text-xs text-gray-900 whitespace-pre-line">{header.remarks}</div>
                         </div>
                     )}
                 </div>
 
                 {/* Right Column: Financials */}
-                <div className="col-span-4 space-y-6">
-                    <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Financial Summary</h2>
+                <div className="col-span-4 space-y-4">
+                    <div className="bg-white rounded border border-gray-200 p-4 shadow-sm">
+                        <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-blue-600" />
+                            Financial Summary
+                        </h2>
                         <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-4 pb-4 border-b border-gray-100">
                                 <Field label="Taxable Value" value={header.taxable_value} isCurrency />
                             </div>
 
                             <div className="space-y-3 pb-4 border-b border-gray-100">
-                                <div className="flex justify-between items-center text-sm">
+                                <div className="flex justify-between items-center text-xs">
                                     <span className="text-gray-600">CGST</span>
                                     <span className="font-medium">₹{header.cgst?.toLocaleString()}</span>
                                 </div>
-                                <div className="flex justify-between items-center text-sm">
+                                <div className="flex justify-between items-center text-xs">
                                     <span className="text-gray-600">SGST</span>
                                     <span className="font-medium">₹{header.sgst?.toLocaleString()}</span>
                                 </div>
-                                <div className="flex justify-between items-center text-sm">
+                                <div className="flex justify-between items-center text-xs">
                                     <span className="text-gray-600">IGST</span>
                                     <span className="font-medium">₹{header.igst?.toLocaleString()}</span>
                                 </div>
@@ -211,7 +223,7 @@ export default function InvoiceDetailPage() {
                             <div className="pt-2">
                                 <div className="flex justify-between items-end">
                                     <span className="text-base font-semibold text-gray-900">Total Value</span>
-                                    <span className="text-2xl font-bold text-blue-600">
+                                    <span className="text-xl font-bold text-blue-600">
                                         ₹{header.total_invoice_value?.toLocaleString()}
                                     </span>
                                 </div>

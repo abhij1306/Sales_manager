@@ -143,7 +143,7 @@ export default function PODetailPage() {
 
         return (
             <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+                <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">{label}</label>
                 {editMode && !isReadonly ? (
                     <input
                         type="text"
@@ -156,43 +156,46 @@ export default function PODetailPage() {
                                 });
                             }
                         }}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 !text-gray-900 bg-white"
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 !text-gray-900 bg-white"
                     />
                 ) : (
-                    <div className="text-sm text-gray-900">{value || '-'}</div>
+                    <div className="text-sm font-medium text-gray-900 truncate" title={value}>{value || '-'}</div>
                 )}
             </div>
         );
     };
 
     return (
-        <div className="p-8 max-w-7xl mx-auto">
+        <div className="p-4 max-w-[98%] mx-auto">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-4">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
                     <button
                         onClick={() => router.back()}
-                        className="text-gray-600 hover:text-gray-900"
+                        className="text-gray-500 hover:text-gray-900"
                     >
-                        <ArrowLeft className="w-5 h-5" />
+                        <ArrowLeft className="w-4 h-4" />
                     </button>
                     <div>
-                        <h1 className="text-2xl font-semibold text-gray-900">
+                        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-3">
                             Purchase Order {header.po_number}
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 uppercase tracking-wide">
+                                {header.po_status || "Active"}
+                            </span>
                         </h1>
-                        <p className="text-sm text-gray-500 mt-1">
+                        <p className="text-xs text-gray-500">
                             Date: {header.po_date}
                         </p>
                     </div>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                     {editMode ? (
                         <>
                             <button
                                 onClick={() => setEditMode(false)}
-                                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                                className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
                             >
-                                <X className="w-4 h-4 inline mr-2" />
+                                <X className="w-3 h-3 inline mr-1" />
                                 Cancel
                             </button>
                             <button
@@ -200,10 +203,10 @@ export default function PODetailPage() {
                                     // TODO: Implement save functionality
                                     alert('Save functionality coming in Phase 2');
                                 }}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700"
                             >
-                                <Save className="w-4 h-4 inline mr-2" />
-                                Save Changes
+                                <Save className="w-3 h-3 inline mr-1" />
+                                Save
                             </button>
                         </>
                     ) : (
@@ -216,19 +219,19 @@ export default function PODetailPage() {
                                         router.push(`/dc/create?po=${header.po_number}`);
                                     }
                                 }}
-                                className={`px-4 py-2 text-white rounded-lg flex items-center gap-2 ${hasDC
+                                className={`px-3 py-1.5 text-xs font-medium text-white rounded flex items-center gap-1.5 ${hasDC
                                     ? 'bg-blue-600 hover:bg-blue-700'
                                     : 'bg-green-600 hover:bg-green-700'
                                     }`}
                             >
-                                <Plus className="w-4 h-4" />
+                                <Plus className="w-3 h-3" />
                                 {hasDC ? 'Edit Challan' : 'Create Challan'}
                             </button>
                             <button
                                 onClick={() => setEditMode(true)}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                className="px-3 py-1.5 text-xs font-medium bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
                             >
-                                <Edit2 className="w-4 h-4 inline mr-2" />
+                                <Edit2 className="w-3 h-3 inline mr-1" />
                                 Edit
                             </button>
                         </>
@@ -239,7 +242,7 @@ export default function PODetailPage() {
             {/* Tabs */}
             <div className="bg-white rounded-lg border border-gray-200 mb-4">
                 <div className="border-b border-gray-200">
-                    <div className="flex gap-1 p-1">
+                    <div className="flex gap-1 px-2 pt-2">
                         {[
                             { id: 'basic', label: 'Basic Info' },
                             { id: 'references', label: 'References' },
@@ -249,9 +252,9 @@ export default function PODetailPage() {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === tab.id
-                                    ? 'bg-blue-50 text-blue-700'
-                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                className={`px-3 py-1.5 text-xs font-semibold rounded-t-lg transition-colors border-t border-l border-r ${activeTab === tab.id
+                                    ? 'bg-white border-gray-200 border-b-white text-blue-600 relative top-[1px]'
+                                    : 'bg-gray-50 border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                                     }`}
                             >
                                 {tab.label}
@@ -260,7 +263,7 @@ export default function PODetailPage() {
                     </div>
                 </div>
 
-                <div className="p-6">
+                <div className="p-4 bg-white rounded-b-lg">
                     {activeTab === 'basic' && (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <Field label="PO Number" value={header.po_number} field="po_number" readonly />
@@ -307,8 +310,8 @@ export default function PODetailPage() {
                                 <Field label="Issuer Phone" value={header.issuer_phone} field="issuer_phone" />
                             </div>
                             {(header.remarks || editMode) && (
-                                <div className="mt-4">
-                                    <label className="block text-xs font-medium text-gray-600 mb-1">Remarks</label>
+                                <div className="mt-3 pt-3 border-t border-gray-100">
+                                    <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-1">Remarks</label>
                                     {editMode ? (
                                         <textarea
                                             value={header.remarks || ''}
@@ -316,8 +319,8 @@ export default function PODetailPage() {
                                                 ...data,
                                                 header: { ...data.header, remarks: e.target.value }
                                             })}
-                                            rows={3}
-                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg !text-gray-900 bg-white"
+                                            rows={2}
+                                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 !text-gray-900 bg-white"
                                         />
                                     ) : (
                                         <div className="text-sm text-gray-900 whitespace-pre-wrap">{header.remarks}</div>
@@ -330,13 +333,13 @@ export default function PODetailPage() {
             </div>
 
             {/* Items & Deliveries */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-semibold text-gray-900">Order Items & Delivery Schedule</h2>
                     {editMode && (
                         <button
                             onClick={addItem}
-                            className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 flex items-center gap-2"
+                            className="px-2 py-1 bg-green-50 text-green-700 text-xs font-medium rounded border border-green-200 hover:bg-green-100 flex items-center gap-1"
                         >
                             <span>+</span> Add Item
                         </button>
@@ -347,7 +350,7 @@ export default function PODetailPage() {
                         {items.map((item: any) => (
                             <div key={item.po_item_no} className="border border-gray-200 rounded-lg overflow-hidden">
                                 {/* Item Header */}
-                                <div className="bg-gray-50 p-4">
+                                <div className="bg-gray-50 px-3 py-2">
                                     <div className="flex items-center justify-between">
                                         <div className="grid grid-cols-9 gap-4 flex-1 text-sm">
                                             <div>
@@ -483,7 +486,7 @@ export default function PODetailPage() {
                                             {editMode && (
                                                 <button
                                                     onClick={() => removeItem(item.po_item_no)}
-                                                    className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                                                    className="px-2 py-0.5 bg-red-50 text-red-600 text-[10px] font-medium rounded hover:bg-red-100"
                                                 >
                                                     Delete
                                                 </button>
@@ -506,27 +509,27 @@ export default function PODetailPage() {
 
                                 {/* Delivery Schedule Table */}
                                 {expandedItems.has(item.po_item_no) && item.deliveries && item.deliveries.length > 0 && (
-                                    <div className="p-4 border-t border-gray-200 bg-white">
+                                    <div className="px-3 py-2 border-t border-gray-200 bg-white">
                                         <div className="flex items-center justify-between mb-3">
                                             <h4 className="text-sm font-medium text-gray-700">Delivery Schedule</h4>
                                             {editMode && (
                                                 <button
                                                     onClick={() => addDelivery(item.po_item_no)}
-                                                    className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+                                                    className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-medium rounded bg-blue-100"
                                                 >
-                                                    + Add Delivery
+                                                    + Delivery
                                                 </button>
                                             )}
                                         </div>
                                         <table className="w-full text-sm">
                                             <thead className="bg-gray-50">
                                                 <tr>
-                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Lot No</th>
-                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Delivery Qty</th>
-                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Delivery Date</th>
-                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Entry Allow Date</th>
-                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Dest Code</th>
-                                                    {editMode && <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Actions</th>}
+                                                    <th className="px-3 py-1 text-left text-[10px] uppercase font-semibold text-gray-500">Lot No</th>
+                                                    <th className="px-3 py-1 text-left text-[10px] uppercase font-semibold text-gray-500">Delivery Qty</th>
+                                                    <th className="px-3 py-1 text-left text-[10px] uppercase font-semibold text-gray-500">Delivery Date</th>
+                                                    <th className="px-3 py-1 text-left text-[10px] uppercase font-semibold text-gray-500">Entry Allow Date</th>
+                                                    <th className="px-3 py-1 text-left text-[10px] uppercase font-semibold text-gray-500">Dest Code</th>
+                                                    {editMode && <th className="px-3 py-1 text-left text-[10px] uppercase font-semibold text-gray-500">Actions</th>}
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-200">
@@ -541,7 +544,7 @@ export default function PODetailPage() {
                                                             <td className="px-3 py-2">
                                                                 <button
                                                                     onClick={() => removeDelivery(item.po_item_no, idx)}
-                                                                    className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                                                                    className="px-2 py-0.5 bg-red-50 text-red-600 text-[10px] rounded hover:bg-red-100"
                                                                 >
                                                                     Delete
                                                                 </button>
