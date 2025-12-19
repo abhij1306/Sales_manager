@@ -21,7 +21,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <div className="flex h-screen bg-background">
           <NavRail />
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden scrollbar-stable">
             <header className="bg-white border-b border-border px-8 py-4 flex items-center justify-between shrink-0">
               <h2 className="text-[20px] font-semibold text-text-primary">Sales Manager</h2>
               <div className="flex items-center gap-4">

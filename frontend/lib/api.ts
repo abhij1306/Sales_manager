@@ -454,10 +454,10 @@ export const api = {
         return apiFetch<any>(`/api/invoice/${invoiceNumber}`);
     },
 
-    async createInvoice(invoice: InvoiceCreate, dcNumbers: string[]): Promise<any> {
+    async createInvoice(payload: any): Promise<any> {
         return apiFetch<any>('/api/invoice/', {
             method: 'POST',
-            body: JSON.stringify({ ...invoice, dc_numbers: dcNumbers }),
+            body: JSON.stringify(payload),
         });
     }
 };

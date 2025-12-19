@@ -465,7 +465,7 @@ export default function POPage() {
                 <Pagination
                     currentPage={currentPage}
                     totalItems={filteredPOs.length}
-                    pageSize={pageSize}
+                    itemsPerPage={pageSize}
                     onPageChange={setCurrentPage}
                 />
             </div>

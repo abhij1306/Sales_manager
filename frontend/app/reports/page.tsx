@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { api, ReconciliationItem, DCWithoutInvoice, SupplierSummary } from '@/lib/api';
 import {
     FileBarChart,
@@ -11,36 +12,59 @@ import {
     Download,
     Calendar
 } from "lucide-react";
+import Pagination from "@/components/Pagination";
 
 export default function ReportsPage() {
+    const router = useRouter();
     const [activeReport, setActiveReport] = useState("reconciliation");
     const [reconciliationData, setReconciliationData] = useState<ReconciliationItem[]>([]);
     const [dcWithoutInvoice, setDcWithoutInvoice] = useState<DCWithoutInvoice[]>([]);
     const [supplierSummary, setSupplierSummary] = useState<SupplierSummary[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         loadReportData();
-    }, [activeReport]);
+    }, []);
 
     const loadReportData = async () => {
         setLoading(true);
         try {
-            if (activeReport === "reconciliation") {
-                const data = await api.getReport("po-dc-invoice-reconciliation");
-                setReconciliationData(data);
-            } else if (activeReport === "dc-without-invoice") {
-                const data = await api.getReport("dc-without-invoice");
-                setDcWithoutInvoice(data);
-            } else if (activeReport === "supplier-summary") {
-                const data = await api.getReport("supplier-summary");
-                setSupplierSummary(data);
-            }
+            const [reconData, dcData, supplierData] = await Promise.all([
+                api.getReport("po-dc-invoice-reconciliation"),
+                api.getReport("dc-without-invoice"),
+                api.getReport("supplier-summary")
+            ]);
+
+            setReconciliationData(reconData);
+            setDcWithoutInvoice(dcData);
+            setSupplierSummary(supplierData);
         } catch (err) {
             console.error("Failed to load report:", err);
         } finally {
             setLoading(false);
         }
+    };
+
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [activeReport]);
+
+    const getCurrentDataLength = () => {
+        switch (activeReport) {
+            case "reconciliation": return reconciliationData.length;
+            case "dc-without-invoice": return dcWithoutInvoice.length;
+            case "supplier-summary": return supplierSummary.length;
+            default: return 0;
+        }
+    };
+
+    const getPaginatedData = <T,>(data: T[]) => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        return data.slice(startIndex, startIndex + itemsPerPage);
     };
 
     return (
@@ -175,7 +199,7 @@ export default function ReportsPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-border/50 bg-white">
-                                        {reconciliationData.map((row, idx) => (
+                                        {getPaginatedData(reconciliationData).map((row, idx) => (
                                             <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
                                                 <td className="px-6 py-3 text-[13px] font-semibold text-text-primary">{row.po_number}</td>
                                                 <td className="px-6 py-3 text-[13px] text-text-secondary">{row.po_item_no}</td>
@@ -206,14 +230,17 @@ export default function ReportsPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-border/50 bg-white">
-                                        {dcWithoutInvoice.map((row, idx) => (
+                                        {getPaginatedData(dcWithoutInvoice).map((row, idx) => (
                                             <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
                                                 <td className="px-6 py-3 text-[13px] font-semibold text-text-primary">{row.dc_number}</td>
                                                 <td className="px-6 py-3 text-[13px] text-text-secondary">{row.dc_date}</td>
                                                 <td className="px-6 py-3 text-[13px] text-text-primary font-medium">{row.po_number || "-"}</td>
                                                 <td className="px-6 py-3 text-[13px] text-text-secondary">{row.consignee_name || "-"}</td>
                                                 <td className="px-6 py-3 text-right">
-                                                    <button className="text-[11px] font-medium text-primary hover:underline">
+                                                    <button
+                                                        onClick={() => router.push(`/invoice/create?dc=${row.dc_number}`)}
+                                                        className="text-[11px] font-medium text-primary hover:underline"
+                                                    >
                                                         Create Invoice
                                                     </button>
                                                 </td>
@@ -235,7 +262,7 @@ export default function ReportsPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-border/50 bg-white">
-                                        {supplierSummary.map((row, idx) => (
+                                        {getPaginatedData(supplierSummary).map((row, idx) => (
                                             <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
                                                 <td className="px-6 py-3 text-[13px] font-semibold text-text-primary">{row.supplier_name}</td>
                                                 <td className="px-6 py-3 text-center text-[13px] text-text-secondary font-medium">{row.po_count}</td>
@@ -248,6 +275,13 @@ export default function ReportsPage() {
                                     </tbody>
                                 </table>
                             )}
+
+                            <Pagination
+                                currentPage={currentPage}
+                                totalItems={getCurrentDataLength()}
+                                itemsPerPage={itemsPerPage}
+                                onPageChange={setCurrentPage}
+                            />
                         </div>
                     )}
                 </div>

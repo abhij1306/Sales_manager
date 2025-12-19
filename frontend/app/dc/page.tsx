@@ -232,7 +232,7 @@ export default function DCListPage() {
                       </div>
                     </td>
                     <td className="px-6 py-3">
-                      <LinkWrapper href={`/po`} className="px-2 py-1 bg-gray-50 text-text-secondary text-[11px] rounded border border-border font-medium hover:bg-gray-100 transition-colors inline-block">
+                      <LinkWrapper href={`/po/${dc.po_number}`} className="px-2 py-1 bg-gray-50 text-text-secondary text-[11px] rounded border border-border font-medium hover:bg-gray-100 transition-colors inline-block">
                         PO-{dc.po_number}
                       </LinkWrapper>
                     </td>
@@ -263,7 +263,7 @@ export default function DCListPage() {
         <Pagination
           currentPage={currentPage}
           totalItems={filteredDCs.length}
-          pageSize={pageSize}
+          itemsPerPage={pageSize}
           onPageChange={setCurrentPage}
         />
       </div>

@@ -183,7 +183,6 @@ export default function DashboardPage() {
                 <tr>
                   <th className="px-6 py-3 text-left text-[11px] font-bold text-text-secondary uppercase tracking-wider">Date</th>
                   <th className="px-6 py-3 text-left text-[11px] font-bold text-text-secondary uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-3 text-left text-[11px] font-bold text-text-secondary uppercase tracking-wider">Party Name</th>
                   <th className="px-6 py-3 text-right text-[11px] font-bold text-text-secondary uppercase tracking-wider">Amount</th>
                   <th className="px-6 py-3 text-right text-[11px] font-bold text-text-secondary uppercase tracking-wider">Status</th>
                 </tr>
@@ -197,7 +196,6 @@ export default function DashboardPage() {
                         {item.type}-{item.number}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-[13px] font-medium text-text-primary">{item.party}</td>
                     <td className="px-6 py-4 text-[13px] text-text-secondary text-right font-medium">
                       {item.amount ? `₹${item.amount.toLocaleString()}` : '-'}
                     </td>

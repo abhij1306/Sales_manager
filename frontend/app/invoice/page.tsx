@@ -76,20 +76,19 @@ export default function InvoicePage() {
     return (
         <div className="space-y-6">
             {/* Page Header */}
-            <div>
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-[20px] font-semibold text-text-primary tracking-tight">GST Invoices</h1>
-                        <p className="text-[13px] text-text-secondary mt-1">Manage invoices, track payments, and link delivery challans.</p>
-                    </div>
-                    <button
-                        onClick={() => router.push('/invoice/create')}
-                        className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium shadow-sm transition-colors"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Create New Invoice
-                    </button>
+            {/* Page Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-[20px] font-semibold text-text-primary tracking-tight">GST Invoices</h1>
+                    <p className="text-[13px] text-text-secondary mt-0.5">Manage and view all tax invoices</p>
                 </div>
+                <button
+                    onClick={() => router.push('/invoice/create')}
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                    <Plus className="w-4 h-4" />
+                    Create New Invoice
+                </button>
             </div>
 
             {/* KPI Cards */}
@@ -196,7 +195,7 @@ export default function InvoicePage() {
                                 <th className="px-6 py-4">Invoice #</th>
                                 <th className="px-6 py-4">Date</th>
                                 <th className="px-6 py-4">Customer</th>
-                                <th className="px-6 py-4">Linked Challans</th>
+                                <th className="px-6 py-4">Linked Challan</th>
                                 <th className="px-6 py-4 text-right">Taxable Amt</th>
                                 <th className="px-6 py-4 text-right">Total Amt</th>
                                 <th className="px-6 py-4 text-center w-16"></th>
@@ -242,9 +241,13 @@ export default function InvoicePage() {
                                             <td className="px-6 py-3">
                                                 <div className="flex flex-wrap gap-1.5">
                                                     {invoice.linked_dc_numbers ? invoice.linked_dc_numbers.split(',').map((dc, i) => (
-                                                        <span key={i} className="px-2 py-0.5 bg-gray-50 text-text-secondary text-[11px] rounded border border-border font-medium">
+                                                        <button
+                                                            key={i}
+                                                            onClick={() => router.push(`/dc/${dc.trim()}`)}
+                                                            className="px-2 py-0.5 bg-gray-50 text-text-secondary text-[11px] rounded border border-border font-medium hover:bg-gray-100 hover:text-primary transition-colors"
+                                                        >
                                                             {dc.trim()}
-                                                        </span>
+                                                        </button>
                                                     )) : (
                                                         <span className="text-text-secondary/50 text-[11px] italic">--</span>
                                                     )}
@@ -276,7 +279,7 @@ export default function InvoicePage() {
                 <Pagination
                     currentPage={currentPage}
                     totalItems={filteredInvoices.length}
-                    pageSize={pageSize}
+                    itemsPerPage={pageSize}
                     onPageChange={setCurrentPage}
                 />
             </div>

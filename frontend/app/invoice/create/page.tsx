@@ -2,60 +2,184 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Save, FileText, Loader2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Save, FileText, Loader2, Lock, Package } from "lucide-react";
 import { api } from "@/lib/api";
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const BUYER_DEFAULTS = {
+    name: 'Sr. Accounts Officer (PB), M/S Bharat Heavy Electrical Ltd.',
+    gstin: '23AAACB4146P1ZN',
+    state: 'MP',
+    place_of_supply: 'BHOPAL, MP'
+};
+
+const TAX_RATES = { cgst: 9.0, sgst: 9.0 };
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+function numberToWords(num: number): string {
+    if (num === 0) return 'Zero';
+
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+
+    function convertLessThanThousand(n: number): string {
+        if (n === 0) return '';
+        if (n < 10) return ones[n];
+        if (n < 20) return teens[n - 10];
+        if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + ones[n % 10] : '');
+        return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' and ' + convertLessThanThousand(n % 100) : '');
+    }
+
+    const crore = Math.floor(num / 10000000);
+    const lakh = Math.floor((num % 10000000) / 100000);
+    const thousand = Math.floor((num % 100000) / 1000);
+    const remainder = num % 1000;
+
+    let result = '';
+    if (crore > 0) result += convertLessThanThousand(crore) + ' Crore ';
+    if (lakh > 0) result += convertLessThanThousand(lakh) + ' Lakh ';
+    if (thousand > 0) result += convertLessThanThousand(thousand) + ' Thousand ';
+    if (remainder > 0) result += convertLessThanThousand(remainder);
+
+    return result.trim();
+}
+
+function amountInWords(amount: number): string {
+    const rupees = Math.floor(amount);
+    const paise = Math.round((amount - rupees) * 100);
+
+    let words = 'Rupees ' + numberToWords(rupees);
+    if (paise > 0) words += ' and Paise ' + numberToWords(paise);
+    words += ' Only';
+
+    return words;
+}
+
+// ============================================================================
+// COMPONENTS
+// ============================================================================
+
+const Input = ({ label, value, onChange, type = "text", placeholder = "", required = false, readOnly = false }: any) => (
+    <div>
+        <label className="block text-[11px] uppercase tracking-wider font-semibold text-text-secondary mb-1">
+            {label} {required && <span className="text-danger">*</span>}
+        </label>
+        <div className="relative">
+            <input
+                type={type}
+                value={value}
+                onChange={onChange}
+                readOnly={readOnly}
+                placeholder={placeholder}
+                className={`w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary ${readOnly ? 'bg-gray-50 text-text-secondary cursor-not-allowed' : 'bg-white'
+                    }`}
+            />
+            {readOnly && <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-text-secondary" />}
+        </div>
+    </div>
+);
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 
 function CreateInvoicePageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const dcId = searchParams.get('dc');
+    const dcId = searchParams?.get('dc');
 
+    const [activeTab, setActiveTab] = useState('details');
     const [loading, setLoading] = useState(!!dcId);
     const [saving, setSaving] = useState(false);
-    const [dcData, setDcData] = useState<any>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
 
     const [formData, setFormData] = useState({
         invoice_number: '',
         invoice_date: new Date().toISOString().split('T')[0],
-        linked_dc_numbers: '',
-        po_numbers: '',
-        customer_gstin: '',
-        place_of_supply: '',
-        taxable_value: 0,
-        cgst: 0,
-        sgst: 0,
-        igst: 0,
-        total_invoice_value: 0,
-        remarks: ''
+        dc_number: '', challan_date: '',
+        buyer_name: BUYER_DEFAULTS.name,
+        buyer_gstin: BUYER_DEFAULTS.gstin,
+        buyer_state: BUYER_DEFAULTS.state,
+        place_of_supply: BUYER_DEFAULTS.place_of_supply,
+        buyers_order_no: '', buyers_order_date: '',
+        vehicle_no: '', lr_no: '', transporter: '', destination: '', terms_of_delivery: '',
+        gemc_number: '', mode_of_payment: '', payment_terms: '45 Days',
+        despatch_doc_no: '', srv_no: '', srv_date: '', remarks: '',
+        taxable_value: 0, cgst: 0, sgst: 0, total_invoice_value: 0
     });
 
     useEffect(() => {
-        if (!dcId) return;
+        if (!dcId) {
+            setError("No DC specified. Please create invoice from a Delivery Challan.");
+            setLoading(false);
+            return;
+        }
 
         const loadDC = async () => {
             try {
                 const data = await api.getDCDetail(dcId);
-                setDcData(data);
-                if (data.header) {
-                    setFormData(prev => ({
-                        ...prev,
-                        linked_dc_numbers: data.header.dc_number || '',
-                        po_numbers: data.header.po_number?.toString() || '',
-                        customer_gstin: data.header.supplier_gstin || data.header.consignee_gstin || '',
-                        place_of_supply: data.header.consignee_address?.split(',').pop()?.trim() || '',
-                    }));
+                if (!data || !data.header) {
+                    setError("Failed to load DC details");
+                    setLoading(false);
+                    return;
                 }
-                if (data.items) {
-                    const totalTaxable = data.items.reduce((acc: number, item: any) => {
+
+                setFormData(prev => ({
+                    ...prev,
+                    dc_number: data.header.dc_number || '',
+                    challan_date: data.header.dc_date || '',
+                    buyers_order_no: data.header.po_number?.toString() || '',
+                    buyers_order_date: data.header.po_date || ''
+                }));
+
+                if (data.items && data.items.length > 0) {
+                    const items = data.items.map((item: any) => {
                         const qty = item.dispatch_qty || 0;
                         const rate = item.po_rate || 0;
-                        return acc + (qty * rate);
-                    }, 0);
-                    setFormData(prev => ({ ...prev, taxable_value: totalTaxable }));
+                        const taxable_value = qty * rate;
+                        const cgst_amount = (taxable_value * TAX_RATES.cgst) / 100;
+                        const sgst_amount = (taxable_value * TAX_RATES.sgst) / 100;
+                        const total = taxable_value + cgst_amount + sgst_amount;
+
+                        return {
+                            po_sl_no: item.lot_no || '',
+                            description: item.description || item.material_description || '',
+                            quantity: qty, unit: 'NO', rate: rate,
+                            taxable_value, cgst_rate: TAX_RATES.cgst, cgst_amount,
+                            sgst_rate: TAX_RATES.sgst, sgst_amount, total_amount: total
+                        };
+                    });
+
+                    setInvoiceItems(items);
+
+                    const totals = items.reduce((acc: any, item: any) => ({
+                        taxable: acc.taxable + item.taxable_value,
+                        cgst: acc.cgst + item.cgst_amount,
+                        sgst: acc.sgst + item.sgst_amount,
+                        total: acc.total + item.total_amount
+                    }), { taxable: 0, cgst: 0, sgst: 0, total: 0 });
+
+                    setFormData(prev => ({
+                        ...prev,
+                        taxable_value: totals.taxable,
+                        cgst: totals.cgst,
+                        sgst: totals.sgst,
+                        total_invoice_value: totals.total
+                    }));
                 }
+
                 setLoading(false);
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Failed to fetch DC:", err);
+                setError(err.message || "Failed to load DC details");
                 setLoading(false);
             }
         };
@@ -63,88 +187,64 @@ function CreateInvoicePageContent() {
         loadDC();
     }, [dcId]);
 
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR'
-        }).format(amount);
-    };
+    const handleSubmit = async () => {
+        if (saving) return;
 
-    useEffect(() => {
-        const taxable = Number(formData.taxable_value) || 0;
-        const cgst = Number(formData.cgst) || 0;
-        const sgst = Number(formData.sgst) || 0;
-        const igst = Number(formData.igst) || 0;
-
-        const total = taxable + cgst + sgst + igst;
-        setFormData(prev => ({ ...prev, total_invoice_value: total }));
-    }, [formData.taxable_value, formData.cgst, formData.sgst, formData.igst]);
-
-    const handleSave = async () => {
-        if (!formData.invoice_number) {
-            alert("Invoice Number is required");
+        if (!formData.invoice_number || !formData.invoice_number.trim()) {
+            setError("Invoice Number is required");
             return;
         }
 
+        setError(null);
         setSaving(true);
+
         try {
-            const dcNumbers = formData.linked_dc_numbers.split(',').map(s => s.trim()).filter(Boolean);
-            await api.createInvoice(formData, dcNumbers);
-            // alert('Invoice Created Successfully!'); // Optional: Remove alert, let redirect handle UX
-            router.push('/invoice');
+            const payload = {
+                invoice_number: formData.invoice_number,
+                invoice_date: formData.invoice_date, dc_number: formData.dc_number,
+                buyer_name: formData.buyer_name, buyer_gstin: formData.buyer_gstin,
+                buyer_state: formData.buyer_state, place_of_supply: formData.place_of_supply,
+                buyers_order_no: formData.buyers_order_no, buyers_order_date: formData.buyers_order_date,
+                vehicle_no: formData.vehicle_no, lr_no: formData.lr_no,
+                transporter: formData.transporter, destination: formData.destination,
+                terms_of_delivery: formData.terms_of_delivery, gemc_number: formData.gemc_number,
+                mode_of_payment: formData.mode_of_payment, payment_terms: formData.payment_terms,
+                despatch_doc_no: formData.despatch_doc_no, srv_no: formData.srv_no,
+                srv_date: formData.srv_date, remarks: formData.remarks
+            };
+
+            const response = await api.createInvoice(payload);
+            if (response.invoice_number) {
+                router.push(`/invoice/${response.invoice_number}`);
+            } else {
+                router.push('/invoice');
+            }
         } catch (err: any) {
-            console.error("Save failed:", err);
-            alert("Error saving invoice: " + err.message);
+            console.error("Failed to create invoice:", err);
+            setError(err.message || "Failed to create invoice");
         } finally {
             setSaving(false);
         }
     };
 
     if (loading) {
+        return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+    }
+
+    if (!dcId) {
         return (
-            <div className="flex items-center justify-center h-full">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <div className="flex flex-col items-center justify-center h-full">
+                <FileText className="w-16 h-16 text-text-secondary mb-4" />
+                <p className="text-text-secondary">Please create invoice from a Delivery Challan</p>
+                <button onClick={() => router.push('/dc')} className="mt-4 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700">
+                    Go to Delivery Challans
+                </button>
             </div>
         );
     }
 
-    const Input = ({ label, field, type = "text", placeholder = "", required = false, readOnly = false }: any) => (
-        <div>
-            <label className="block text-[11px] uppercase tracking-wider font-semibold text-text-secondary mb-1">
-                {label} {required && <span className="text-danger">*</span>}
-            </label>
-            <input
-                type={type}
-                value={formData[field as keyof typeof formData]}
-                onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
-                readOnly={readOnly}
-                placeholder={placeholder}
-                className={`w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary bg-white ${readOnly ? 'bg-gray-50 text-text-secondary' : ''}`}
-            />
-        </div>
-    );
-
-    const handleNumberChange = (field: string, val: string) => {
-        setFormData({ ...formData, [field]: parseFloat(val) || 0 });
-    };
-
-    const NumberInput = ({ label, field }: any) => (
-        <div>
-            <label className="block text-[11px] uppercase tracking-wider font-semibold text-text-secondary mb-1">{label}</label>
-            <div className="relative">
-                <span className="absolute left-3 top-2 text-text-secondary text-xs font-semibold">₹</span>
-                <input
-                    type="number"
-                    value={formData[field as keyof typeof formData] || ''}
-                    onChange={(e) => handleNumberChange(field, e.target.value)}
-                    className="w-full pl-7 pr-3 py-2 border border-border rounded-lg text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary font-bold text-right text-text-primary"
-                />
-            </div>
-        </div>
-    );
-
     return (
-        <div className="space-y-6 pb-24">
+        <div className="space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -152,104 +252,190 @@ function CreateInvoicePageContent() {
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
-                        <h1 className="text-[20px] font-semibold text-text-primary tracking-tight">Create GST Invoice</h1>
-                        <p className="text-[13px] text-text-secondary mt-1">
-                            {dcId ? `Generating from DC #${formData.linked_dc_numbers}` : 'Create New Invoice'}
+                        <h1 className="text-[20px] font-semibold text-text-primary flex items-center gap-3">
+                            Create GST Invoice
+                            <span className="text-[11px] font-medium text-text-secondary bg-gray-100 px-2 py-0.5 rounded border border-border flex items-center gap-1">
+                                DC: <span className="text-primary cursor-pointer hover:underline" onClick={() => router.push(`/dc/${dcId}`)}>{formData.dc_number}</span>
+                            </span>
+                        </h1>
+                        <p className="text-[13px] text-text-secondary mt-0.5">
+                            Date: {formData.invoice_date}
                         </p>
                     </div>
                 </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                {/* Main Form */}
-                <div className="md:col-span-8 space-y-6">
-                    {/* Basic Details Card */}
-                    <div className="glass-card overflow-hidden">
-                        <div className="p-4 border-b border-border bg-gray-50/30">
-                            <h3 className="text-[14px] font-semibold text-text-primary flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-primary" />
-                                Basic Details
-                            </h3>
-                        </div>
-                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            <Input label="Invoice Number" field="invoice_number" required placeholder="e.g. INV/23-24/001" />
-                            <Input label="Invoice Date" field="invoice_date" type="date" required />
-                            <Input label="Place of Supply" field="place_of_supply" placeholder="State Name / Code" />
-                            <Input label="PO Number(s)" field="po_numbers" placeholder="Comma separated PO numbers" />
-                            <Input label="Customer GSTIN" field="customer_gstin" />
-                            <Input label="Linked DC(s)" field="linked_dc_numbers" placeholder="Comma separated DC numbers" />
-                        </div>
-                    </div>
-
-                    {/* Remarks Card */}
-                    <div className="glass-card overflow-hidden">
-                        <div className="p-4 border-b border-border bg-gray-50/30">
-                            <h3 className="text-[14px] font-semibold text-text-primary flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-primary" />
-                                Additional Notes
-                            </h3>
-                        </div>
-                        <div className="p-4">
-                            <textarea
-                                value={formData.remarks}
-                                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary h-24 text-text-primary"
-                                placeholder="Terms of delivery, payment terms, or any other remarks..."
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Financials Sidebar */}
-                <div className="md:col-span-4 space-y-6">
-                    <div className="glass-card overflow-hidden">
-                        <div className="p-4 border-b border-border bg-gray-50/30">
-                            <h3 className="text-[14px] font-semibold text-text-primary flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-primary" />
-                                Financials
-                            </h3>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <NumberInput label="Taxable Value" field="taxable_value" />
-
-                            <div className="pt-4 border-t border-border space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <NumberInput label="CGST" field="cgst" />
-                                    <NumberInput label="SGST" field="sgst" />
-                                </div>
-                                <NumberInput label="IGST" field="igst" />
-                            </div>
-
-                            <div className="pt-4 border-t border-border mt-2">
-                                <div className="flex justify-between items-end mb-2">
-                                    <label className="text-[13px] font-semibold text-text-primary">Total Invoice Value</label>
-                                    <span className="text-[20px] font-bold text-primary">
-                                        {formatCurrency(formData.total_invoice_value)}
-                                    </span>
-                                </div>
-                                <p className="text-[11px] text-text-secondary text-right">Includes all taxes</p>
-                            </div>
-                        </div>
-                    </div>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => router.back()}
+                        className="px-4 py-2 text-sm font-medium text-text-secondary bg-white border border-border rounded-lg hover:bg-gray-50 transition-colors"
+                        disabled={saving}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={saving || invoiceItems.length === 0}
+                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                        {saving ? (
+                            <>
+                                <Loader2 className="w-4 h-4 animate-spin" /> Saving...
+                            </>
+                        ) : (
+                            <>
+                                <Save className="w-4 h-4" /> Save
+                            </>
+                        )}
+                    </button>
                 </div>
             </div>
 
-            {/* Float Action Bar */}
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-border z-20 flex justify-end gap-3 max-w-[1240px] mx-auto w-full">
-                <button
-                    onClick={() => router.back()}
-                    className="px-4 py-2 text-sm font-medium text-text-secondary bg-white border border-border rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                    Cancel
-                </button>
-                <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 text-sm font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    Save Invoice
-                </button>
+            {/* Error Display */}
+            {error && (
+                <div className="glass-card p-4 bg-red-50 border-red-200">
+                    <div className="flex items-center gap-2 text-red-700">
+                        <FileText className="w-4 h-4" />
+                        <span className="text-sm font-medium">{error}</span>
+                    </div>
+                </div>
+            )}
+
+            {/* Tabs */}
+            <div className="glass-card overflow-hidden">
+                <div className="border-b border-border">
+                    <div className="flex gap-8 px-6">
+                        <button onClick={() => setActiveTab('details')} className={`py-3 text-sm font-medium transition-colors relative ${activeTab === 'details' ? 'text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
+                            Invoice and Despatch Details
+                            {activeTab === 'details' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></div>}
+                        </button>
+                        <button onClick={() => setActiveTab('transport')} className={`py-3 text-sm font-medium transition-colors relative ${activeTab === 'transport' ? 'text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
+                            Transport and Payment
+                            {activeTab === 'transport' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></div>}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="p-6">
+                    {activeTab === 'details' && (
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <Input label="Invoice Number" value={formData.invoice_number} onChange={(e: any) => setFormData({ ...formData, invoice_number: e.target.value })} required placeholder="e.g., INV/2024-25/001" />
+                            <Input label="Invoice Date" type="date" value={formData.invoice_date} onChange={(e: any) => setFormData({ ...formData, invoice_date: e.target.value })} required />
+                            <Input label="GEMC / E-way Bill" value={formData.gemc_number} onChange={(e: any) => setFormData({ ...formData, gemc_number: e.target.value })} placeholder="Optional" />
+                            <Input label="Challan No" value={formData.dc_number} readOnly />
+
+                            <Input label="Challan Date" value={formData.challan_date} readOnly />
+                            <Input label="Buyer's Order No" value={formData.buyers_order_no} readOnly />
+                            <Input label="Buyer's Order Date" value={formData.buyers_order_date} readOnly />
+                            <Input label="Despatch Doc No" value={formData.despatch_doc_no} onChange={(e: any) => setFormData({ ...formData, despatch_doc_no: e.target.value })} />
+
+                            <Input label="SRV No" value={formData.srv_no} onChange={(e: any) => setFormData({ ...formData, srv_no: e.target.value })} />
+                            <Input label="SRV Date" type="date" value={formData.srv_date} onChange={(e: any) => setFormData({ ...formData, srv_date: e.target.value })} />
+                            <div className="md:col-span-2">
+                                <Input label="Buyer Name" value={formData.buyer_name} onChange={(e: any) => setFormData({ ...formData, buyer_name: e.target.value })} required />
+                            </div>
+
+                            <Input label="Buyer GSTIN" value={formData.buyer_gstin} onChange={(e: any) => setFormData({ ...formData, buyer_gstin: e.target.value })} />
+                            <Input label="State" value={formData.buyer_state} onChange={(e: any) => setFormData({ ...formData, buyer_state: e.target.value })} />
+                            <Input label="Place of Supply" value={formData.place_of_supply} onChange={(e: any) => setFormData({ ...formData, place_of_supply: e.target.value })} />
+                        </div>
+                    )}
+
+                    {activeTab === 'transport' && (
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <Input label="Vehicle Number" value={formData.vehicle_no} onChange={(e: any) => setFormData({ ...formData, vehicle_no: e.target.value })} placeholder="e.g., MP04-AA-1234" />
+                            <Input label="LR Number" value={formData.lr_no} onChange={(e: any) => setFormData({ ...formData, lr_no: e.target.value })} />
+                            <Input label="Transporter" value={formData.transporter} onChange={(e: any) => setFormData({ ...formData, transporter: e.target.value })} />
+                            <Input label="Destination" value={formData.destination} onChange={(e: any) => setFormData({ ...formData, destination: e.target.value })} />
+
+                            <Input label="Terms of Delivery" value={formData.terms_of_delivery} onChange={(e: any) => setFormData({ ...formData, terms_of_delivery: e.target.value })} />
+                            <Input label="Mode of Payment" value={formData.mode_of_payment} onChange={(e: any) => setFormData({ ...formData, mode_of_payment: e.target.value })} />
+                            <Input label="Payment Terms" value={formData.payment_terms} onChange={(e: any) => setFormData({ ...formData, payment_terms: e.target.value })} />
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Items Table */}
+            <div className="glass-card overflow-hidden">
+                <div className="p-4 border-b border-border bg-gray-50/30">
+                    <h3 className="text-[14px] font-semibold text-text-primary flex items-center gap-2">
+                        <Package className="w-4 h-4 text-primary" /> Invoice Items (from DC)
+                    </h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-gray-50/50 text-text-secondary font-semibold text-[11px] uppercase tracking-wider border-b border-border">
+                            <tr>
+                                <th className="px-4 py-3">Lot No</th>
+                                <th className="px-4 py-3">Description</th>
+                                <th className="px-4 py-3 text-right">Qty</th>
+                                <th className="px-4 py-3">Unit</th>
+                                <th className="px-4 py-3 text-right">Rate</th>
+                                <th className="px-4 py-3 text-right">Taxable Value</th>
+                                <th className="px-4 py-3 text-right">CGST (9%)</th>
+                                <th className="px-4 py-3 text-right">SGST (9%)</th>
+                                <th className="px-4 py-3 text-right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/50 bg-white">
+                            {invoiceItems.map((item, idx) => (
+                                <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
+                                    <td className="px-4 py-3 text-sm text-text-primary">{item.po_sl_no}</td>
+                                    <td className="px-4 py-3 text-sm text-text-primary">{item.description}</td>
+                                    <td className="px-4 py-3 text-sm text-text-primary text-right">{item.quantity}</td>
+                                    <td className="px-4 py-3 text-sm text-text-secondary">{item.unit}</td>
+                                    <td className="px-4 py-3 text-sm text-text-primary text-right">₹{item.rate.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-text-primary text-right font-medium">₹{item.taxable_value.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-text-primary text-right">₹{item.cgst_amount.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-text-primary text-right">₹{item.sgst_amount.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-text-primary text-right font-semibold">₹{item.total_amount.toFixed(2)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Tax Summary */}
+            <div className="glass-card overflow-hidden">
+                <div className="p-4 border-b border-border bg-gray-50/30">
+                    <h3 className="text-[14px] font-semibold text-text-primary">Tax Summary</h3>
+                </div>
+                <div className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center pb-2 border-b border-border">
+                                <span className="text-sm text-text-secondary">Taxable Value</span>
+                                <span className="text-sm font-semibold text-text-primary">₹{formData.taxable_value.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between items-center pb-2 border-b border-border">
+                                <span className="text-sm text-text-secondary">CGST (9%)</span>
+                                <span className="text-sm font-semibold text-text-primary">₹{formData.cgst.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between items-center pb-2 border-b border-border">
+                                <span className="text-sm text-text-secondary">SGST (9%)</span>
+                                <span className="text-sm font-semibold text-text-primary">₹{formData.sgst.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between items-center pt-2 border-t-2 border-primary">
+                                <span className="text-sm font-semibold text-text-primary">Total Invoice Value</span>
+                                <span className="text-lg font-bold text-primary">₹{formData.total_invoice_value.toFixed(2)}</span>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-border">
+                            <h4 className="text-xs font-semibold text-text-secondary uppercase">Amount in Words</h4>
+                            <div className="space-y-2">
+                                <div className="text-xs text-text-secondary">
+                                    <span className="font-semibold">CGST (in words):</span>
+                                    <div className="mt-1 text-text-primary">{amountInWords(formData.cgst)}</div>
+                                </div>
+                                <div className="text-xs text-text-secondary">
+                                    <span className="font-semibold">SGST (in words):</span>
+                                    <div className="mt-1 text-text-primary">{amountInWords(formData.sgst)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );

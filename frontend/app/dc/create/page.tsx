@@ -55,11 +55,6 @@ function CreateDCPageContent() {
         dc_date: new Date().toISOString().split('T')[0],
         supplier_phone: "0755 – 4247748",
         supplier_gstin: "23AACFS6810L1Z7",
-        mode_of_transport: "",
-        vehicle_number: "",
-        transporter_name: "",
-        lr_number: "",
-        eway_bill_number: "",
         consignee_name: '',
         consignee_address: ''
     });
@@ -81,7 +76,7 @@ function CreateDCPageContent() {
                     consignee_name: data.header?.consignee_name || '',
                     consignee_address: data.header?.consignee_address || '',
                     supplier_phone: data.header?.supplier_phone || '',
-                    supplier_gstin: data.header?.supplier_gstin || ''
+                    supplier_gstin: data.header?.supplier_gstin || '23AACFS6810L1Z7' // Preserve default if not in PO
                 }));
             }
         } catch (err) {
@@ -177,9 +172,12 @@ function CreateDCPageContent() {
             return;
         }
 
-        const invalidItems = items.filter(item => !item.dispatch_quantity || item.dispatch_quantity <= 0);
-        if (invalidItems.length > 0) {
-            setError("All items must have a dispatch quantity greater than 0");
+        // Filter items to only include those with dispatch quantity > 0
+        // This allows creating DCs with partial items from a PO
+        const itemsToDispatch = items.filter(item => item.dispatch_quantity && item.dispatch_quantity > 0);
+
+        if (itemsToDispatch.length === 0) {
+            setError("At least one item must have a dispatch quantity greater than 0");
             setIsSubmitting(false);
             return;
         }
@@ -189,17 +187,12 @@ function CreateDCPageContent() {
                 dc_number: formData.dc_number,
                 dc_date: formData.dc_date,
                 po_number: poNumber ? parseInt(poNumber) : undefined,
-                consignee_name: formData.consignee_name,
-                consignee_address: formData.consignee_address,
-                vehicle_no: formData.vehicle_number,
-                lr_no: formData.lr_number,
-                transporter: formData.transporter_name,
-                mode_of_transport: formData.mode_of_transport,
-                eway_bill_no: formData.eway_bill_number,
+                supplier_phone: formData.supplier_phone,
+                supplier_gstin: formData.supplier_gstin,
                 remarks: notes.join("\n\n")
             };
 
-            const itemsPayload = items.map(item => ({
+            const itemsPayload = itemsToDispatch.map(item => ({
                 po_item_id: item.po_item_id,
                 lot_no: item.lot_no ? parseInt(item.lot_no) : undefined,
                 dispatch_qty: item.dispatch_quantity,
@@ -218,7 +211,7 @@ function CreateDCPageContent() {
     };
 
     return (
-        <div className="space-y-6 pb-24">
+        <div className="space-y-6">{/* Removed pb-24 since footer is gone */}
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -229,8 +222,17 @@ function CreateDCPageContent() {
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
-                        <h1 className="text-[20px] font-semibold text-text-primary tracking-tight">Create Transport Challan</h1>
-                        <p className="text-[13px] text-text-secondary mt-1">Generate a new delivery challan for PO: {poId}</p>
+                        <h1 className="text-[20px] font-semibold text-text-primary flex items-center gap-3">
+                            Create Delivery Challan
+                            {initialPoNumber && (
+                                <span className="text-[11px] font-medium text-text-secondary bg-gray-100 px-2 py-0.5 rounded border border-border flex items-center gap-1">
+                                    PO: <span className="text-primary hover:underline cursor-pointer" onClick={() => router.push(`/po/${initialPoNumber}`)}>{initialPoNumber}</span>
+                                </span>
+                            )}
+                        </h1>
+                        <p className="text-[13px] text-text-secondary mt-0.5">
+                            Date: {formData.dc_date}
+                        </p>
                     </div>
                 </div>
                 <div className="flex gap-3 items-center">
@@ -247,35 +249,39 @@ function CreateDCPageContent() {
                             <button
                                 onClick={() => handleLoadItems(poNumber)}
                                 disabled={isLoading || !poNumber}
-                                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
-                                {isLoading ? "Loading..." : "Fetch Items"}
+                                {isLoading ? 'Loading...' : (
+                                    <>
+                                        <FileText className="w-4 h-4" /> Fetch Items
+                                    </>
+                                )}
                             </button>
                         </>
                     )}
+                    {/* Action Buttons */}
+                    <button
+                        onClick={() => router.back()}
+                        className="px-4 py-2 text-sm font-medium text-text-secondary bg-white border border-border rounded-lg hover:bg-gray-50 transition-colors"
+                        disabled={isSubmitting}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={isSubmitting}
+                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                        {isSubmitting ? 'Saving...' : (
+                            <>
+                                <Save className="w-4 h-4" /> Save Challan
+                            </>
+                        )}
+                    </button>
                 </div>
             </div>
 
-            {/* PO Reference */}
-            {initialPoNumber && poData && (
-                <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-blue-100 p-2 rounded-lg text-primary">
-                            <FileText className="w-4 h-4" />
-                        </div>
-                        <div>
-                            <p className="text-[13px] text-primary font-medium">Creating DC from Purchase Order</p>
-                            <p className="text-[11px] text-blue-600/80">PO Date: {poData.po_date || 'N/A'}</p>
-                        </div>
-                    </div>
-                    <a
-                        href={`/po/${initialPoNumber}`}
-                        className="text-[12px] text-primary hover:text-blue-700 font-medium underline flex items-center gap-1"
-                    >
-                        View PO #{initialPoNumber} <ArrowLeft className="w-3 h-3 rotate-180" />
-                    </a>
-                </div>
-            )}
+            {/* PO Reference - Removed Blue Box as per user request */}
 
             {/* Error Display */}
             {error && (
@@ -311,16 +317,6 @@ function CreateDCPageContent() {
                             value={formData.dc_date}
                             onChange={(e) => setFormData({ ...formData, dc_date: e.target.value })}
                             className="w-full px-3 py-2 border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary bg-white text-sm"
-                        />
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Vehicle Number</label>
-                        <input
-                            type="text"
-                            value={formData.vehicle_number}
-                            onChange={(e) => setFormData({ ...formData, vehicle_number: e.target.value })}
-                            className="w-full px-3 py-2 border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary bg-white text-sm"
-                            placeholder="e.g. MP04-AA-1234"
                         />
                     </div>
 
@@ -498,27 +494,7 @@ function CreateDCPageContent() {
                 </div>
             </div>
 
-            {/* Footer Action Bar */}
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-border z-20 flex justify-end gap-3 max-w-[1240px] mx-auto w-full"> {/* Adjust max-w to match layout */}
-                <button
-                    onClick={() => router.back()}
-                    className="px-4 py-2 text-sm font-medium text-text-secondary bg-white border border-border rounded-lg hover:bg-gray-50 transition-colors"
-                    disabled={isSubmitting}
-                >
-                    Cancel
-                </button>
-                <button
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                    {isSubmitting ? 'Saving...' : (
-                        <>
-                            <Save className="w-4 h-4" /> Save Challan
-                        </>
-                    )}
-                </button>
-            </div>
+
         </div>
     );
 }
