@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ArrowLeft, Edit2, Save, X, ChevronDown, ChevronUp, Plus } from "lucide-react";
 import { api } from '@/lib/api';
+import { PODetail, POItem, PODelivery } from "@/types";
 
 export default function PODetailPage() {
     const router = useRouter();
     const params = useParams();
     const poId = params?.id as string;
-    const [data, setData] = useState<any>(null);
+    const [data, setData] = useState<PODetail | null>(null);
     const [loading, setLoading] = useState(true);
     const [editMode, setEditMode] = useState(false);
     const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
@@ -28,7 +29,7 @@ export default function PODetailPage() {
 
                 // Expand all items by default
                 if (poData.items && poData.items.length > 0) {
-                    const allItemNos = new Set<number>(poData.items.map((item: any) => item.po_item_no as number));
+                    const allItemNos = new Set<number>(poData.items.map((item: POItem) => item.po_item_no));
                     setExpandedItems(allItemNos);
                 }
 
@@ -64,7 +65,7 @@ export default function PODetailPage() {
 
     const addItem = () => {
         if (!data || !data.items) return;
-        const maxItemNo = Math.max(...data.items.map((i: any) => i.po_item_no || 0), 0);
+        const maxItemNo = Math.max(...data.items.map((i: POItem) => i.po_item_no || 0), 0);
         const newItem = {
             po_item_no: maxItemNo + 1,
             material_code: '',
@@ -81,7 +82,7 @@ export default function PODetailPage() {
 
     const removeItem = (itemNo: number) => {
         if (!data || !data.items) return;
-        const newItems = data.items.filter((i: any) => i.po_item_no !== itemNo);
+        const newItems = data.items.filter((i: POItem) => i.po_item_no !== itemNo);
         setData({ ...data, items: newItems });
         const newExpanded = new Set(expandedItems);
         newExpanded.delete(itemNo);
@@ -90,7 +91,7 @@ export default function PODetailPage() {
 
     const addDelivery = (itemNo: number) => {
         if (!data || !data.items) return;
-        const newItems = data.items.map((item: any) => {
+        const newItems = data.items.map((item: POItem) => {
             if (item.po_item_no === itemNo) {
                 const newDelivery = {
                     lot_no: (item.deliveries?.length || 0) + 1,
@@ -111,9 +112,9 @@ export default function PODetailPage() {
 
     const removeDelivery = (itemNo: number, deliveryIndex: number) => {
         if (!data || !data.items) return;
-        const newItems = data.items.map((item: any) => {
+        const newItems = data.items.map((item: POItem) => {
             if (item.po_item_no === itemNo) {
-                const newDeliveries = item.deliveries.filter((_: any, idx: number) => idx !== deliveryIndex);
+                const newDeliveries = item.deliveries.filter((_: PODelivery, idx: number) => idx !== deliveryIndex);
                 return { ...item, deliveries: newDeliveries };
             }
             return item;
@@ -139,7 +140,14 @@ export default function PODetailPage() {
 
     const { header, items } = data;
 
-    const Field = ({ label, value, field, readonly = false }: { label: string; value: any; field?: string; readonly?: boolean }) => {
+    interface FieldProps {
+        label: string;
+        value: string | number | null | undefined;
+        field?: string;
+        readonly?: boolean;
+    }
+
+    const Field = ({ label, value, field, readonly = false }: FieldProps) => {
         // Don't hide fields - always show them
         const isReadonly = readonly || field === 'po_number' || field === 'po_date';
 
@@ -349,7 +357,7 @@ export default function PODetailPage() {
                 </div>
                 {items && items.length > 0 ? (
                     <div className="space-y-4">
-                        {items.map((item: any) => (
+                        {items.map((item: POItem) => (
                             <div key={item.po_item_no} className="border border-border rounded-lg overflow-hidden bg-white">
                                 {/* Item Header */}
                                 <div className="bg-gray-50/50 px-4 py-3 border-b border-border/50">
@@ -519,7 +527,7 @@ export default function PODetailPage() {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-border/30">
-                                                {item.deliveries.map((delivery: any, idx: number) => (
+                                                {item.deliveries.map((delivery: PODelivery, idx: number) => (
                                                     <tr key={idx} className="hover:bg-gray-50/30 transition-colors">
                                                         <td className="px-3 py-2 text-text-primary font-medium">{delivery.lot_no}</td>
                                                         <td className="px-3 py-2 text-text-primary text-right font-medium">{delivery.dely_qty}</td>

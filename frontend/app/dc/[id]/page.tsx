@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ArrowLeft, Edit2, Save, X, FileText, Plus, Trash2, Truck, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
+import { DCItemRow as DCItemRowType } from "@/types";
 
 const PO_NOTE_TEMPLATES = [
     { id: 't1', title: 'Standard Dispatch Note', content: 'Material is being dispatched against PO No: ... dated ...' },
@@ -12,15 +13,7 @@ const PO_NOTE_TEMPLATES = [
     { id: 't4', title: 'Excise Gate Pass', content: 'Excise Gate Pass No: ... Date: ...' }
 ];
 
-interface DCItemRow {
-    id: string;
-    lot_no: string;
-    description: string;
-    ordered_qty: number;
-    remaining_post_dc: number;
-    dispatch_quantity: number;
-    po_item_id: string;
-}
+
 
 export default function DCDetailPage() {
     const router = useRouter();
@@ -34,7 +27,7 @@ export default function DCDetailPage() {
     const [invoiceNumber, setInvoiceNumber] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    const [items, setItems] = useState<DCItemRow[]>([]);
+    const [items, setItems] = useState<DCItemRowType[]>([]);
     const [notes, setNotes] = useState<string[]>([]);
     const [selectedTemplate, setSelectedTemplate] = useState("");
 
@@ -78,13 +71,13 @@ export default function DCDetailPage() {
                     });
 
                     if (data.items && data.items.length > 0) {
-                        const mappedItems = data.items.map((item: any, idx: number) => ({
+                        const mappedItems: DCItemRowType[] = data.items.map((item: DCItemRowType, idx: number) => ({
                             id: `item-${idx}`,
-                            lot_no: item.lot_no || (idx + 1).toString(),
-                            description: item.material_description || "",
-                            ordered_qty: item.lot_ordered_qty || 0,
+                            lot_no: item.lot_no?.toString() || (idx + 1).toString(),
+                            description: item.material_description || item.description || "",
+                            ordered_qty: item.lot_ordered_qty || item.ordered_qty || 0,
                             remaining_post_dc: item.remaining_post_dc || 0,
-                            dispatch_quantity: item.dispatch_qty || 0,
+                            dispatch_quantity: item.dispatch_qty || item.dispatch_quantity || 0,
                             po_item_id: item.po_item_id
                         }));
                         setItems(mappedItems);
@@ -118,9 +111,9 @@ export default function DCDetailPage() {
         try {
             const data = await api.getReconciliation(parseInt(poNumber));
             if (data.items) {
-                const mappedItems = data.items.map((item: any, idx: number) => ({
+                const mappedItems: DCItemRowType[] = data.items.map((item: any, idx: number) => ({
                     id: `item-${idx}`,
-                    lot_no: item.lot_no || (idx + 1).toString(),
+                    lot_no: item.lot_no?.toString() || (idx + 1).toString(),
                     description: item.material_description || "",
                     ordered_qty: item.ordered_qty || 0,
                     remaining_post_dc: item.remaining_qty || 0,
@@ -154,7 +147,7 @@ export default function DCDetailPage() {
         setNotes(newNotes);
     };
 
-    const handleItemChange = (id: string, field: keyof DCItemRow, value: any) => {
+    const handleItemChange = (id: string, field: keyof DCItemRowType, value: string | number) => {
         setItems(items.map(item =>
             item.id === id ? { ...item, [field]: value } : item
         ));
@@ -194,9 +187,9 @@ export default function DCDetailPage() {
             await api.updateDC(dcId, dcPayload, itemsPayload);
             setEditMode(false);
             window.location.reload();
-        } catch (err: any) {
+        } catch (err) {
             console.error("Failed to update DC", err);
-            setError(err.message);
+            setError(err instanceof Error ? err.message : "Failed to update DC");
         } finally {
             setLoading(false);
         }
@@ -210,7 +203,15 @@ export default function DCDetailPage() {
         );
     }
 
-    const Field = ({ label, value, onChange, placeholder = "", disabled = false }: any) => (
+    interface FieldProps {
+        label: string;
+        value: string;
+        onChange: (value: string) => void;
+        placeholder?: string;
+        disabled?: boolean;
+    }
+
+    const Field = ({ label, value, onChange, placeholder = "", disabled = false }: FieldProps) => (
         <div>
             <label className="block text-[11px] uppercase tracking-wider font-semibold text-text-secondary mb-1">{label}</label>
             <input

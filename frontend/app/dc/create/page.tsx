@@ -4,6 +4,8 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Plus, Trash2, Calendar, Truck, FileText, Check, AlertCircle, Save } from 'lucide-react';
 import { api } from "@/lib/api";
+import { DCItemRow, PODetail, TableInputProps } from "@/types";
+import type { ChangeEvent } from "react";
 
 // Mock PO Notes Templates (Replace with API fetch if needed)
 const PO_NOTE_TEMPLATES = [
@@ -13,22 +15,13 @@ const PO_NOTE_TEMPLATES = [
     { id: 't4', title: 'Excise Gate Pass', content: 'Excise Gate Pass No: ... Date: ...' }
 ];
 
-interface DCItemRow {
-    id: string; // Unique ID for the row
-    lot_no: string;
-    description: string;
-    ordered_qty: number;
-    already_dispatched: number;
-    remaining_qty: number;
-    dispatch_quantity: number;
-    po_item_id: string;
-}
 
-const TableInput = ({ value, onChange, type = "text", placeholder = "", className = "", disabled = false }: any) => (
+
+const TableInput = ({ value, onChange, type = "text", placeholder = "", className = "", disabled = false }: TableInputProps) => (
     <input
         type={type}
         value={value}
-        onChange={e => onChange(type === "number" ? parseFloat(e.target.value) || 0 : e.target.value)}
+        onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(type === "number" ? parseFloat(e.target.value) || 0 : e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
         className={`w-full px-2 py-1 text-xs border border-border rounded focus:ring-1 focus:ring-primary focus:border-primary bg-white text-text-primary ${className} ${disabled ? 'bg-gray-50 text-text-secondary' : ''}`}
@@ -45,7 +38,7 @@ function CreateDCPageContent() {
     const [items, setItems] = useState<DCItemRow[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [poData, setPOData] = useState<any>(null);
+    const [poData, setPOData] = useState<PODetail | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [notes, setNotes] = useState<string[]>([]);
     const [selectedTemplate, setSelectedTemplate] = useState("");
@@ -90,7 +83,7 @@ function CreateDCPageContent() {
         setError(null);
         try {
             const data = await api.getReconciliationLots(parseInt(po));
-            const mappedItems: DCItemRow[] = data.lots.map((lot: any) => ({
+            const mappedItems: DCItemRow[] = data.lots.map((lot: { po_item_id: string; lot_no?: number; material_description?: string; ordered_qty?: number; already_dispatched?: number; remaining_qty?: number }) => ({
                 id: `${lot.po_item_id}-${lot.lot_no}`,
                 lot_no: lot.lot_no?.toString() || "",
                 description: lot.material_description || "",
@@ -132,7 +125,7 @@ function CreateDCPageContent() {
         setNotes(newNotes);
     };
 
-    const handleItemChange = (id: string, field: keyof DCItemRow, value: any) => {
+    const handleItemChange = (id: string, field: keyof DCItemRow, value: string | number) => {
         setItems(items.map(item =>
             item.id === id ? { ...item, [field]: value } : item
         ));
@@ -385,8 +378,8 @@ function CreateDCPageContent() {
                                 <tr key={idx} className="hover:bg-gray-50/50 transition-colors group">
                                     <td className="px-4 py-2">
                                         <TableInput
-                                            value={item.lot_no}
-                                            onChange={(v: string) => handleItemChange(item.id, 'lot_no', v)}
+                                            value={item.lot_no || ''}
+                                            onChange={(v) => handleItemChange(item.id, 'lot_no', v)}
                                             readOnly
                                             disabled
                                             className="text-center"
@@ -394,8 +387,8 @@ function CreateDCPageContent() {
                                     </td>
                                     <td className="px-4 py-2">
                                         <TableInput
-                                            value={item.description}
-                                            onChange={(v: string) => handleItemChange(item.id, 'description', v)}
+                                            value={item.description || ''}
+                                            onChange={(v) => handleItemChange(item.id, 'description', v)}
                                             readOnly
                                             disabled
                                         />
@@ -406,8 +399,8 @@ function CreateDCPageContent() {
                                     <td className="px-4 py-2">
                                         <TableInput
                                             type="number"
-                                            value={item.dispatch_quantity}
-                                            onChange={(v: number) => handleItemChange(item.id, 'dispatch_quantity', v)}
+                                            value={item.dispatch_quantity || 0}
+                                            onChange={(v) => handleItemChange(item.id, 'dispatch_quantity', v)}
                                             placeholder="0"
                                             max={item.remaining_qty}
                                             className="text-right font-bold text-primary border-primary/30 focus:border-primary"

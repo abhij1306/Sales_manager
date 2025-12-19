@@ -5,11 +5,14 @@ Implements strict accounting rules with audit-safe transaction handling
 from fastapi import APIRouter, Depends, HTTPException
 from app.db import get_db
 from app.models import InvoiceListItem, InvoiceCreate, InvoiceStats
-from app.errors import bad_request, not_found, conflict, internal_error
+from app.errors import not_found, internal_error
+from app.core import (
+    DomainError,
+    map_error_code_to_http_status
+)
+from app.services.invoice import create_invoice as service_create_invoice
 from typing import List, Optional
-from datetime import datetime
 import sqlite3
-import uuid
 import logging
 from pydantic import BaseModel
 
@@ -64,60 +67,6 @@ class EnhancedInvoiceCreate(BaseModel):
     srv_no: Optional[str] = None
     srv_date: Optional[str] = None
     remarks: Optional[str] = None
-
-
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
-
-def generate_invoice_number(db: sqlite3.Connection) -> str:
-    """
-    Generate collision-safe invoice number: INV/{FY}/{XXX}
-    MUST be called inside BEGIN IMMEDIATE transaction
-    """
-    today = datetime.now()
-    
-    # Calculate financial year (Apr-Mar)
-    if today.month >= 4:
-        fy = f"{today.year}-{str(today.year + 1)[2:]}"
-    else:
-        fy = f"{today.year - 1}-{str(today.year)[2:]}"
-    
-    # Get last invoice number for this FY
-    last_row = db.execute("""
-        SELECT invoice_number 
-        FROM gst_invoices 
-        WHERE invoice_number LIKE ? 
-        ORDER BY invoice_number DESC 
-        LIMIT 1
-    """, (f"INV/{fy}/%",)).fetchone()
-    
-    if last_row:
-        try:
-            last_num = int(last_row[0].split('/')[-1])
-            new_num = last_num + 1
-        except (ValueError, IndexError):
-            new_num = 1
-    else:
-        new_num = 1
-    
-    return f"INV/{fy}/{new_num:03d}"
-
-
-def calculate_tax(taxable_value: float, cgst_rate: float = 9.0, sgst_rate: float = 9.0) -> dict:
-    """
-    Calculate CGST and SGST amounts
-    Backend is the source of truth for all monetary calculations
-    """
-    cgst_amount = round(taxable_value * cgst_rate / 100, 2)
-    sgst_amount = round(taxable_value * sgst_rate / 100, 2)
-    total = round(taxable_value + cgst_amount + sgst_amount, 2)
-    
-    return {
-        'cgst_amount': cgst_amount,
-        'sgst_amount': sgst_amount,
-        'total_amount': total
-    }
 
 
 # ============================================================================
@@ -222,206 +171,50 @@ def create_invoice(request: EnhancedInvoiceCreate, db: sqlite3.Connection = Depe
     Create Invoice from Delivery Challan
     
     CRITICAL CONSTRAINTS:
-    - 1 DC → 1 Invoice (enforced)
+    - 1 DC → 1 Invoice (enforced via INVARIANT DC-2)
     - Invoice items are 1-to-1 mapping from DC items
-    - Backend recomputes all monetary values
+    - Backend recomputes all monetary values (INVARIANT INV-2)
     - Transaction uses BEGIN IMMEDIATE for collision safety
     """
     
-    dc_number = request.dc_number
+    # Convert Pydantic model to dict for service layer
+    invoice_data = request.dict()
     
-    # ========== VALIDATION (before transaction) ==========
-    
-    if not dc_number or dc_number.strip() == "":
-        raise bad_request("DC number is required")
-    
-    if not request.invoice_date or request.invoice_date.strip() == "":
-        raise bad_request("Invoice date is required")
-    
-    if not request.buyer_name or request.buyer_name.strip() == "":
-        raise bad_request("Buyer name is required")
-    
-    # Check DC exists
-    dc_row = db.execute("""
-        SELECT dc_number, dc_date, po_number FROM delivery_challans WHERE dc_number = ?
-    """, (dc_number,)).fetchone()
-    
-    if not dc_row:
-        raise not_found(f"Delivery Challan {dc_number} not found", "DC")
-    
-    dc_dict = dict(dc_row)
-    
-    # ========== BEGIN IMMEDIATE TRANSACTION ==========
-    # Acquire write lock immediately to prevent race conditions
-    
+    # Use service layer with transaction protection
     try:
+        # CRITICAL: Use BEGIN IMMEDIATE for SQLite concurrency protection
         db.execute("BEGIN IMMEDIATE")
         
         try:
-            # 1. Check if DC already has invoice (1-DC-1-Invoice constraint)
-            existing_invoice = db.execute("""
-                SELECT invoice_number FROM gst_invoice_dc_links WHERE dc_number = ?
-            """, (dc_number,)).fetchone()
-            
-            if existing_invoice:
-                db.rollback()
-                raise conflict(
-                    f"DC {dc_number} is already linked to invoice {existing_invoice[0]}",
-                    log_details="DC_ALREADY_INVOICED"
-                )
-            
-            # 2. Validate Invoice Number (Manual Entry Required)
-            invoice_number = request.invoice_number
-            if not invoice_number or invoice_number.strip() == "":
-                db.rollback()
-                raise bad_request("Invoice Number is required")
-            
-            # 3. Check for duplicate invoice number
-            dup_check = db.execute("""
-                SELECT invoice_number FROM gst_invoices WHERE invoice_number = ?
-            """, (invoice_number,)).fetchone()
-            
-            if dup_check:
-                db.rollback()
-                raise conflict(
-                    f"Invoice number {invoice_number} already exists",
-                    log_details="DUPLICATE_INVOICE_NUMBER"
-                )
-            
-            # 4. Fetch DC items
-            dc_items = db.execute("""
-                SELECT 
-                    dci.po_item_id,
-                    dci.lot_no,
-                    dci.dispatch_qty,
-                    poi.po_rate,
-                    poi.material_description as description,
-                    poi.hsn_code
-                FROM delivery_challan_items dci
-                JOIN purchase_order_items poi ON dci.po_item_id = poi.id
-                WHERE dci.dc_number = ?
-            """, (dc_number,)).fetchall()
-            
-            if not dc_items or len(dc_items) == 0:
-                db.rollback()
-                raise bad_request(f"DC {dc_number} has no items")
-            
-            # 5. Calculate totals (backend is source of truth)
-            invoice_items = []
-            total_taxable = 0.0
-            total_cgst = 0.0
-            total_sgst = 0.0
-            total_amount = 0.0
-            
-            for dc_item in dc_items:
-                qty = dc_item['dispatch_qty']
-                rate = dc_item['po_rate']
-                taxable_value = round(qty * rate, 2)
-                
-                tax_calc = calculate_tax(taxable_value)
-                
-                invoice_items.append({
-                    'po_sl_no': dc_item['lot_no'] or '',
-                    'description': dc_item['description'] or '',
-                    'hsn_sac': dc_item['hsn_code'] or '',
-                    'quantity': qty,
-                    'unit': 'NO',
-                    'rate': rate,
-                    'taxable_value': taxable_value,
-                    'cgst_rate': 9.0,
-                    'cgst_amount': tax_calc['cgst_amount'],
-                    'sgst_rate': 9.0,
-                    'sgst_amount': tax_calc['sgst_amount'],
-                    'igst_rate': 0.0,
-                    'igst_amount': 0.0,
-                    'total_amount': tax_calc['total_amount']
-                })
-                
-                total_taxable += taxable_value
-                total_cgst += tax_calc['cgst_amount']
-                total_sgst += tax_calc['sgst_amount']
-                total_amount += tax_calc['total_amount']
-            
-            # 6. Insert invoice header
-            # IMPORTANT:
-            # gst_invoices intentionally uses invoice_number as PRIMARY KEY.
-            # DO NOT add surrogate 'id' column.
-            # This design is required for accounting and audit correctness.
-            
-            db.execute("""
-                INSERT INTO gst_invoices (
-                    invoice_number, invoice_date,
-                    linked_dc_numbers, po_numbers,
-                    buyer_name, buyer_address, buyer_gstin, buyer_state, buyer_state_code,
-                    customer_gstin, place_of_supply,
-                    buyers_order_no, buyers_order_date,
-                    vehicle_no, lr_no, transporter, destination, terms_of_delivery,
-                    gemc_number, mode_of_payment, payment_terms,
-                    despatch_doc_no, srv_no, srv_date,
-                    taxable_value, cgst, sgst, igst, total_invoice_value,
-                    remarks
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                invoice_number, request.invoice_date,
-                dc_number, str(dc_dict.get('po_number', '')),
-                request.buyer_name, request.buyer_address, request.buyer_gstin,
-                request.buyer_state, request.buyer_state_code,
-                request.buyer_gstin,  # customer_gstin (legacy field)
-                request.place_of_supply,
-                request.buyers_order_no, request.buyers_order_date,
-                request.vehicle_no, request.lr_no, request.transporter,
-                request.destination, request.terms_of_delivery,
-                request.gemc_number, request.mode_of_payment, request.payment_terms,
-                request.despatch_doc_no, request.srv_no, request.srv_date,
-                total_taxable, total_cgst, total_sgst, 0.0, total_amount,
-                request.remarks
-            ))
-            
-            # 7. Insert invoice items
-            for item in invoice_items:
-                db.execute("""
-                    INSERT INTO gst_invoice_items (
-                        invoice_number, po_sl_no, description, hsn_sac,
-                        quantity, unit, rate, taxable_value,
-                        cgst_rate, cgst_amount, sgst_rate, sgst_amount,
-                        igst_rate, igst_amount, total_amount
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    invoice_number, item['po_sl_no'], item['description'], item['hsn_sac'],
-                    item['quantity'], item['unit'], item['rate'], item['taxable_value'],
-                    item['cgst_rate'], item['cgst_amount'], item['sgst_rate'], item['sgst_amount'],
-                    item['igst_rate'], item['igst_amount'], item['total_amount']
-                ))
-            
-            # 8. Create DC link
-            link_id = str(uuid.uuid4())
-            db.execute("""
-                INSERT INTO gst_invoice_dc_links (id, invoice_number, dc_number)
-                VALUES (?, ?, ?)
-            """, (link_id, invoice_number, dc_number))
-            
-            # 9. Commit transaction
+            result = service_create_invoice(invoice_data, db)
             db.commit()
             
-            logger.info(f"Successfully created invoice {invoice_number} from DC {dc_number} with {len(invoice_items)} items")
-            
-            return {
-                "success": True,
-                "invoice_number": invoice_number,
-                "total_amount": total_amount,
-                "items_count": len(invoice_items)
-            }
-            
+            # Service returns ServiceResult - extract data
+            if result.success:
+                return result.data
+            else:
+                # Should not happen if service raises DomainError
+                raise HTTPException(
+                    status_code=500,
+                    detail=result.message or "Unknown error"
+                )
+                
+        except DomainError as e:
+            # Convert domain error to HTTP response
+            db.rollback()
+            status_code = map_error_code_to_http_status(e.error_code)
+            raise HTTPException(
+                status_code=status_code,
+                detail={
+                    "message": e.message,
+                    "error_code": e.error_code.value,
+                    "details": e.details
+                }
+            )
         except Exception as e:
             db.rollback()
             raise
             
-    except HTTPException:
-        # Re-raise HTTP exceptions as-is
-        raise
     except sqlite3.IntegrityError as e:
-        logger.error(f"Invoice creation failed due to integrity error: {e}")
+        logger.error(f"Invoice creation failed due to integrity error: {e}", exc_info=e)
         raise internal_error(f"Database integrity error: {str(e)}", e)
-    except Exception as e:
-        logger.error(f"Unexpected error creating invoice: {e}")
-        raise internal_error(f"Failed to create invoice: {str(e)}", e)

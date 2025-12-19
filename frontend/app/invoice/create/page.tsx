@@ -4,6 +4,9 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Save, FileText, Loader2, Lock, Package } from "lucide-react";
 import { api } from "@/lib/api";
+import type { InvoiceFormData, InvoiceItemUI } from "@/types/ui";
+import { createDefaultInvoiceForm, invoiceUiToApi, validateInvoiceForm } from "@/lib/uiAdapters";
+import type { ChangeEvent } from "react";
 
 // ============================================================================
 // CONSTANTS
@@ -66,7 +69,17 @@ function amountInWords(amount: number): string {
 // COMPONENTS
 // ============================================================================
 
-const Input = ({ label, value, onChange, type = "text", placeholder = "", required = false, readOnly = false }: any) => (
+interface InputProps {
+    label: string;
+    value: string;
+    onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
+    type?: string;
+    placeholder?: string;
+    required?: boolean;
+    readOnly?: boolean;
+}
+
+const Input = ({ label, value, onChange, type = "text", placeholder = "", required = false, readOnly = false }: InputProps) => (
     <div>
         <label className="block text-[11px] uppercase tracking-wider font-semibold text-text-secondary mb-1">
             {label} {required && <span className="text-danger">*</span>}
@@ -99,22 +112,12 @@ function CreateInvoicePageContent() {
     const [loading, setLoading] = useState(!!dcId);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
+    const [invoiceItems, setInvoiceItems] = useState<InvoiceItemUI[]>([]);
 
-    const [formData, setFormData] = useState({
-        invoice_number: '',
-        invoice_date: new Date().toISOString().split('T')[0],
-        dc_number: '', challan_date: '',
-        buyer_name: BUYER_DEFAULTS.name,
-        buyer_gstin: BUYER_DEFAULTS.gstin,
-        buyer_state: BUYER_DEFAULTS.state,
-        place_of_supply: BUYER_DEFAULTS.place_of_supply,
-        buyers_order_no: '', buyers_order_date: '',
-        vehicle_no: '', lr_no: '', transporter: '', destination: '', terms_of_delivery: '',
-        gemc_number: '', mode_of_payment: '', payment_terms: '45 Days',
-        despatch_doc_no: '', srv_no: '', srv_date: '', remarks: '',
-        taxable_value: 0, cgst: 0, sgst: 0, total_invoice_value: 0
-    });
+    // Use strict UI type for form data
+    const [formData, setFormData] = useState<InvoiceFormData>(
+        createDefaultInvoiceForm(dcId || undefined)
+    );
 
     useEffect(() => {
         if (!dcId) {
@@ -134,37 +137,47 @@ function CreateInvoicePageContent() {
 
                 setFormData(prev => ({
                     ...prev,
-                    dc_number: data.header.dc_number || '',
-                    challan_date: data.header.dc_date || '',
-                    buyers_order_no: data.header.po_number?.toString() || '',
-                    buyers_order_date: data.header.po_date || ''
+                    dcNumber: data.header.dc_number || '',
+                    buyersOrderNo: data.header.po_number?.toString() || '',
+                    buyersOrderDate: data.header.po_date || ''
                 }));
 
                 if (data.items && data.items.length > 0) {
-                    const items = data.items.map((item: any) => {
-                        const qty = item.dispatch_qty || 0;
+                    const items: InvoiceItemUI[] = data.items.map((item: any) => {
+                        const qty = item.dispatch_qty || item.dispatch_quantity || 0;
                         const rate = item.po_rate || 0;
-                        const taxable_value = qty * rate;
-                        const cgst_amount = (taxable_value * TAX_RATES.cgst) / 100;
-                        const sgst_amount = (taxable_value * TAX_RATES.sgst) / 100;
-                        const total = taxable_value + cgst_amount + sgst_amount;
+                        const taxableValue = qty * rate;
+                        const cgstAmount = (taxableValue * TAX_RATES.cgst) / 100;
+                        const sgstAmount = (taxableValue * TAX_RATES.sgst) / 100;
+                        const total = taxableValue + cgstAmount + sgstAmount;
 
                         return {
-                            po_sl_no: item.lot_no || '',
+                            lotNumber: item.lot_no?.toString() || '',
                             description: item.description || item.material_description || '',
-                            quantity: qty, unit: 'NO', rate: rate,
-                            taxable_value, cgst_rate: TAX_RATES.cgst, cgst_amount,
-                            sgst_rate: TAX_RATES.sgst, sgst_amount, total_amount: total
+                            hsnCode: item.hsn_code || '',
+                            quantity: qty,
+                            unit: 'NO',
+                            rate: rate,
+                            taxableValue,
+                            tax: {
+                                cgstRate: TAX_RATES.cgst,
+                                cgstAmount,
+                                sgstRate: TAX_RATES.sgst,
+                                sgstAmount,
+                                igstRate: 0,
+                                igstAmount: 0
+                            },
+                            totalAmount: total
                         };
                     });
 
                     setInvoiceItems(items);
 
-                    const totals = items.reduce((acc: any, item: any) => ({
-                        taxable: acc.taxable + item.taxable_value,
-                        cgst: acc.cgst + item.cgst_amount,
-                        sgst: acc.sgst + item.sgst_amount,
-                        total: acc.total + item.total_amount
+                    const totals = items.reduce((acc, item) => ({
+                        taxable: acc.taxable + item.taxableValue,
+                        cgst: acc.cgst + item.tax.cgstAmount,
+                        sgst: acc.sgst + item.tax.sgstAmount,
+                        total: acc.total + item.totalAmount
                     }), { taxable: 0, cgst: 0, sgst: 0, total: 0 });
 
                     setFormData(prev => ({
@@ -177,9 +190,9 @@ function CreateInvoicePageContent() {
                 }
 
                 setLoading(false);
-            } catch (err: any) {
+            } catch (err) {
                 console.error("Failed to fetch DC:", err);
-                setError(err.message || "Failed to load DC details");
+                setError(err instanceof Error ? err.message : "Failed to load DC details");
                 setLoading(false);
             }
         };
@@ -219,9 +232,9 @@ function CreateInvoicePageContent() {
             } else {
                 router.push('/invoice');
             }
-        } catch (err: any) {
+        } catch (err) {
             console.error("Failed to create invoice:", err);
-            setError(err.message || "Failed to create invoice");
+            setError(err instanceof Error ? err.message : "Failed to create invoice");
         } finally {
             setSaving(false);
         }
@@ -317,38 +330,38 @@ function CreateInvoicePageContent() {
                 <div className="p-6">
                     {activeTab === 'details' && (
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <Input label="Invoice Number" value={formData.invoice_number} onChange={(e: any) => setFormData({ ...formData, invoice_number: e.target.value })} required placeholder="e.g., INV/2024-25/001" />
-                            <Input label="Invoice Date" type="date" value={formData.invoice_date} onChange={(e: any) => setFormData({ ...formData, invoice_date: e.target.value })} required />
-                            <Input label="GEMC / E-way Bill" value={formData.gemc_number} onChange={(e: any) => setFormData({ ...formData, gemc_number: e.target.value })} placeholder="Optional" />
+                            <Input label="Invoice Number" value={formData.invoice_number} onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })} required placeholder="e.g., INV/2024-25/001" />
+                            <Input label="Invoice Date" type="date" value={formData.invoice_date} onChange={(e) => setFormData({ ...formData, invoice_date: e.target.value })} required />
+                            <Input label="GEMC / E-way Bill" value={formData.gemc_number || ''} onChange={(e) => setFormData({ ...formData, gemc_number: e.target.value })} placeholder="Optional" />
                             <Input label="Challan No" value={formData.dc_number} readOnly />
 
-                            <Input label="Challan Date" value={formData.challan_date} readOnly />
-                            <Input label="Buyer's Order No" value={formData.buyers_order_no} readOnly />
-                            <Input label="Buyer's Order Date" value={formData.buyers_order_date} readOnly />
-                            <Input label="Despatch Doc No" value={formData.despatch_doc_no} onChange={(e: any) => setFormData({ ...formData, despatch_doc_no: e.target.value })} />
+                            <Input label="Challan Date" value={formData.challan_date || ''} readOnly />
+                            <Input label="Buyer's Order No" value={formData.buyers_order_no || ''} readOnly />
+                            <Input label="Buyer's Order Date" value={formData.buyers_order_date || ''} readOnly />
+                            <Input label="Despatch Doc No" value={formData.despatch_doc_no || ''} onChange={(e) => setFormData({ ...formData, despatch_doc_no: e.target.value })} />
 
-                            <Input label="SRV No" value={formData.srv_no} onChange={(e: any) => setFormData({ ...formData, srv_no: e.target.value })} />
-                            <Input label="SRV Date" type="date" value={formData.srv_date} onChange={(e: any) => setFormData({ ...formData, srv_date: e.target.value })} />
+                            <Input label="SRV No" value={formData.srv_no || ''} onChange={(e) => setFormData({ ...formData, srv_no: e.target.value })} />
+                            <Input label="SRV Date" type="date" value={formData.srv_date || ''} onChange={(e) => setFormData({ ...formData, srv_date: e.target.value })} />
                             <div className="md:col-span-2">
-                                <Input label="Buyer Name" value={formData.buyer_name} onChange={(e: any) => setFormData({ ...formData, buyer_name: e.target.value })} required />
+                                <Input label="Buyer Name" value={formData.buyer_name} onChange={(e) => setFormData({ ...formData, buyer_name: e.target.value })} required />
                             </div>
 
-                            <Input label="Buyer GSTIN" value={formData.buyer_gstin} onChange={(e: any) => setFormData({ ...formData, buyer_gstin: e.target.value })} />
-                            <Input label="State" value={formData.buyer_state} onChange={(e: any) => setFormData({ ...formData, buyer_state: e.target.value })} />
-                            <Input label="Place of Supply" value={formData.place_of_supply} onChange={(e: any) => setFormData({ ...formData, place_of_supply: e.target.value })} />
+                            <Input label="Buyer GSTIN" value={formData.buyer_gstin || ''} onChange={(e) => setFormData({ ...formData, buyer_gstin: e.target.value })} />
+                            <Input label="State" value={formData.buyer_state || ''} onChange={(e) => setFormData({ ...formData, buyer_state: e.target.value })} />
+                            <Input label="Place of Supply" value={formData.place_of_supply || ''} onChange={(e) => setFormData({ ...formData, place_of_supply: e.target.value })} />
                         </div>
                     )}
 
                     {activeTab === 'transport' && (
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <Input label="Vehicle Number" value={formData.vehicle_no} onChange={(e: any) => setFormData({ ...formData, vehicle_no: e.target.value })} placeholder="e.g., MP04-AA-1234" />
-                            <Input label="LR Number" value={formData.lr_no} onChange={(e: any) => setFormData({ ...formData, lr_no: e.target.value })} />
-                            <Input label="Transporter" value={formData.transporter} onChange={(e: any) => setFormData({ ...formData, transporter: e.target.value })} />
-                            <Input label="Destination" value={formData.destination} onChange={(e: any) => setFormData({ ...formData, destination: e.target.value })} />
+                            <Input label="Vehicle Number" value={formData.vehicle_no || ''} onChange={(e) => setFormData({ ...formData, vehicle_no: e.target.value })} placeholder="e.g., MP04-AA-1234" />
+                            <Input label="LR Number" value={formData.lr_no || ''} onChange={(e) => setFormData({ ...formData, lr_no: e.target.value })} />
+                            <Input label="Transporter" value={formData.transporter || ''} onChange={(e) => setFormData({ ...formData, transporter: e.target.value })} />
+                            <Input label="Destination" value={formData.destination || ''} onChange={(e) => setFormData({ ...formData, destination: e.target.value })} />
 
-                            <Input label="Terms of Delivery" value={formData.terms_of_delivery} onChange={(e: any) => setFormData({ ...formData, terms_of_delivery: e.target.value })} />
-                            <Input label="Mode of Payment" value={formData.mode_of_payment} onChange={(e: any) => setFormData({ ...formData, mode_of_payment: e.target.value })} />
-                            <Input label="Payment Terms" value={formData.payment_terms} onChange={(e: any) => setFormData({ ...formData, payment_terms: e.target.value })} />
+                            <Input label="Terms of Delivery" value={formData.terms_of_delivery || ''} onChange={(e) => setFormData({ ...formData, terms_of_delivery: e.target.value })} />
+                            <Input label="Mode of Payment" value={formData.mode_of_payment || ''} onChange={(e) => setFormData({ ...formData, mode_of_payment: e.target.value })} />
+                            <Input label="Payment Terms" value={formData.payment_terms || ''} onChange={(e) => setFormData({ ...formData, payment_terms: e.target.value })} />
                         </div>
                     )}
                 </div>
@@ -379,15 +392,15 @@ function CreateInvoicePageContent() {
                         <tbody className="divide-y divide-border/50 bg-white">
                             {invoiceItems.map((item, idx) => (
                                 <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
-                                    <td className="px-4 py-3 text-sm text-text-primary">{item.po_sl_no}</td>
+                                    <td className="px-4 py-3 text-sm text-text-primary">{item.lotNumber}</td>
                                     <td className="px-4 py-3 text-sm text-text-primary">{item.description}</td>
                                     <td className="px-4 py-3 text-sm text-text-primary text-right">{item.quantity}</td>
                                     <td className="px-4 py-3 text-sm text-text-secondary">{item.unit}</td>
                                     <td className="px-4 py-3 text-sm text-text-primary text-right">₹{item.rate.toFixed(2)}</td>
-                                    <td className="px-4 py-3 text-sm text-text-primary text-right font-medium">₹{item.taxable_value.toFixed(2)}</td>
-                                    <td className="px-4 py-3 text-sm text-text-primary text-right">₹{item.cgst_amount.toFixed(2)}</td>
-                                    <td className="px-4 py-3 text-sm text-text-primary text-right">₹{item.sgst_amount.toFixed(2)}</td>
-                                    <td className="px-4 py-3 text-sm text-text-primary text-right font-semibold">₹{item.total_amount.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-text-primary text-right font-medium">₹{item.taxableValue.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-text-primary text-right">₹{item.tax.cgstAmount.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-text-primary text-right">₹{item.tax.sgstAmount.toFixed(2)}</td>
+                                    <td className="px-4 py-3 text-sm text-text-primary text-right font-semibold">₹{item.totalAmount.toFixed(2)}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -405,19 +418,19 @@ function CreateInvoicePageContent() {
                         <div className="space-y-4">
                             <div className="flex justify-between items-center pb-2 border-b border-border">
                                 <span className="text-sm text-text-secondary">Taxable Value</span>
-                                <span className="text-sm font-semibold text-text-primary">₹{formData.taxable_value.toFixed(2)}</span>
+                                <span className="text-sm font-semibold text-text-primary">₹{(formData.taxable_value || 0).toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between items-center pb-2 border-b border-border">
                                 <span className="text-sm text-text-secondary">CGST (9%)</span>
-                                <span className="text-sm font-semibold text-text-primary">₹{formData.cgst.toFixed(2)}</span>
+                                <span className="text-sm font-semibold text-text-primary">₹{(formData.cgst || 0).toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between items-center pb-2 border-b border-border">
                                 <span className="text-sm text-text-secondary">SGST (9%)</span>
-                                <span className="text-sm font-semibold text-text-primary">₹{formData.sgst.toFixed(2)}</span>
+                                <span className="text-sm font-semibold text-text-primary">₹{(formData.sgst || 0).toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between items-center pt-2 border-t-2 border-primary">
                                 <span className="text-sm font-semibold text-text-primary">Total Invoice Value</span>
-                                <span className="text-lg font-bold text-primary">₹{formData.total_invoice_value.toFixed(2)}</span>
+                                <span className="text-lg font-bold text-primary">₹{(formData.total_invoice_value || 0).toFixed(2)}</span>
                             </div>
                         </div>
 
@@ -426,11 +439,11 @@ function CreateInvoicePageContent() {
                             <div className="space-y-2">
                                 <div className="text-xs text-text-secondary">
                                     <span className="font-semibold">CGST (in words):</span>
-                                    <div className="mt-1 text-text-primary">{amountInWords(formData.cgst)}</div>
+                                    <div className="mt-1 text-text-primary">{amountInWords(formData.cgst || 0)}</div>
                                 </div>
                                 <div className="text-xs text-text-secondary">
                                     <span className="font-semibold">SGST (in words):</span>
-                                    <div className="mt-1 text-text-primary">{amountInWords(formData.sgst)}</div>
+                                    <div className="mt-1 text-text-primary">{amountInWords(formData.sgst || 0)}</div>
                                 </div>
                             </div>
                         </div>

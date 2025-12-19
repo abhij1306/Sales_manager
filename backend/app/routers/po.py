@@ -2,9 +2,10 @@
 Purchase Order Router
 CRUD operations and HTML upload/scraping
 """
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File
 from app.db import get_db
 from app.models import POListItem, PODetail, POHeader, POItem, POStats
+from app.errors import not_found, bad_request, internal_error
 from typing import List
 import sqlite3
 from bs4 import BeautifulSoup
@@ -101,7 +102,7 @@ def get_po_detail(po_number: int, db: sqlite3.Connection = Depends(get_db)):
     """, (po_number,)).fetchone()
     
     if not header_row:
-        raise HTTPException(status_code=404, detail="PO not found")
+        raise not_found(f"Purchase Order {po_number} not found", "PO")
     
     header = POHeader(**dict(header_row))
     
@@ -164,7 +165,7 @@ async def upload_po_html(file: UploadFile = File(...), db: sqlite3.Connection = 
     """Upload and parse PO HTML file"""
     
     if not file.filename.endswith('.html'):
-        raise HTTPException(status_code=400, detail="Only HTML files are supported")
+        raise bad_request("Only HTML files are supported")
     
     # Read and parse HTML
     content = await file.read()
@@ -175,7 +176,7 @@ async def upload_po_html(file: UploadFile = File(...), db: sqlite3.Connection = 
     po_items = extract_items(soup)
     
     if not po_header.get("PURCHASE ORDER"):
-        raise HTTPException(status_code=400, detail="Could not extract PO number from HTML")
+        raise bad_request("Could not extract PO number from HTML")
     
     # Ingest into database
     ingestion_service = POIngestionService()
@@ -187,7 +188,7 @@ async def upload_po_html(file: UploadFile = File(...), db: sqlite3.Connection = 
             "warnings": warnings
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise internal_error(f"Failed to ingest PO: {str(e)}", e)
 
 @router.post("/upload/batch")
 async def upload_po_batch(files: List[UploadFile] = File(...), db: sqlite3.Connection = Depends(get_db)):

@@ -2,12 +2,20 @@
 Delivery Challan Router
 """
 from fastapi import APIRouter, Depends, HTTPException
-from app.db import get_db, db_transaction
+from app.db import get_db
 from app.models import DCListItem, DCCreate, DCStats
-from app.errors import bad_request, not_found, forbidden
+from app.errors import not_found, internal_error
+from app.core import (
+    DomainError,
+    map_error_code_to_http_status
+)
+from app.services.dc import (
+    create_dc as service_create_dc,
+    update_dc as service_update_dc,
+    check_dc_has_invoice
+)
 from typing import List, Optional
 import sqlite3
-import uuid
 import logging
 
 logger = logging.getLogger(__name__)
@@ -22,7 +30,6 @@ def get_dc_stats(db: sqlite3.Connection = Depends(get_db)):
         total_challans = db.execute("SELECT COUNT(*) FROM delivery_challans").fetchone()[0]
         
         # Completed (Linked to Invoice)
-        # Assuming DCs in gst_invoice_dc_links are "Completed" or "Delivered" state
         completed = db.execute("""
             SELECT COUNT(DISTINCT dc_number) FROM gst_invoice_dc_links
         """).fetchone()[0]
@@ -38,8 +45,8 @@ def get_dc_stats(db: sqlite3.Connection = Depends(get_db)):
             "completed_change": 0.0
         }
     except Exception as e:
-        logger.error(f"Failed to fetch DC stats: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch DC statistics: {str(e)}")
+        logger.error(f"Failed to fetch DC stats: {e}", exc_info=e)
+        raise internal_error("Failed to fetch DC statistics", e)
 
 
 @router.get("/", response_model=List[DCListItem])
@@ -164,91 +171,57 @@ def create_dc(dc: DCCreate, items: List[dict], db: sqlite3.Connection = Depends(
     }]
     """
     
-    # ========== VALIDATION ==========
-    
-    # 1. Validate DC header
-    if not dc.dc_number or dc.dc_number.strip() == "":
-        raise bad_request("DC number is required")
-    
-    if not dc.dc_date or dc.dc_date.strip() == "":
-        raise bad_request("DC date is required")
-    
-    logger.debug(f"Creating DC {dc.dc_number} with {len(items)} items")
-    
-    # ========== INSERT WITH CONCURRENCY PROTECTION ==========
-    
+    # Use service layer with transaction protection
     try:
         # CRITICAL: Use BEGIN IMMEDIATE for SQLite concurrency protection
-        # This prevents race conditions by acquiring write lock immediately
         db.execute("BEGIN IMMEDIATE")
         
         try:
-            # 2. Validate items (inside transaction to ensure consistent reads)
-            from app.utils.validation_helpers import validate_dc_items
-            validate_dc_items(items, db, exclude_dc=None)
-            
-            # Insert DC header
-            db.execute("""
-                INSERT INTO delivery_challans
-                (dc_number, dc_date, po_number, department_no, consignee_name, consignee_gstin,
-                 consignee_address, inspection_company, eway_bill_no, vehicle_no, lr_no,
-                 transporter, mode_of_transport, remarks)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                dc.dc_number, dc.dc_date, dc.po_number, dc.department_no, dc.consignee_name,
-                dc.consignee_gstin, dc.consignee_address, dc.inspection_company, dc.eway_bill_no,
-                dc.vehicle_no, dc.lr_no, dc.transporter, dc.mode_of_transport, dc.remarks
-            ))
-            
-            # Insert DC items
-            for item in items:
-                item_id = str(uuid.uuid4())
-                db.execute("""
-                    INSERT INTO delivery_challan_items
-                    (id, dc_number, po_item_id, lot_no, dispatch_qty, hsn_code, hsn_rate)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    item_id,
-                    dc.dc_number,
-                    item["po_item_id"],
-                    item.get("lot_no"),
-                    item["dispatch_qty"],
-                    item.get("hsn_code"),
-                    item.get("hsn_rate")
-                ))
-            
+            result = service_create_dc(dc, items, db)
             db.commit()
-            logger.info(f"Successfully created DC {dc.dc_number} with {len(items)} items")
-            return {"success": True, "dc_number": dc.dc_number}
             
+            # Service returns ServiceResult - extract data
+            if result.success:
+                return result.data
+            else:
+                # Should not happen if service raises DomainError
+                raise HTTPException(
+                    status_code=500,
+                    detail=result.message or "Unknown error"
+                )
+                
+        except DomainError as e:
+            # Convert domain error to HTTP response
+            db.rollback()
+            status_code = map_error_code_to_http_status(e.error_code)
+            raise HTTPException(
+                status_code=status_code,
+                detail={
+                    "message": e.message,
+                    "error_code": e.error_code.value,
+                    "details": e.details
+                }
+            )
         except Exception as e:
             db.rollback()
             raise
             
     except sqlite3.IntegrityError as e:
-        logger.error(f"DC creation failed due to integrity error: {e}")
-        raise bad_request(f"DC creation failed: {str(e)}")
+        logger.error(f"DC creation failed due to integrity error: {e}", exc_info=e)
+        raise internal_error(f"Database integrity error: {str(e)}", e)
 
 
 @router.get("/{dc_number}/invoice")
-def check_dc_has_invoice(dc_number: str, db: sqlite3.Connection = Depends(get_db)):
+def check_dc_has_invoice_endpoint(dc_number: str, db: sqlite3.Connection = Depends(get_db)):
     """Check if DC has an associated GST Invoice"""
-    try:
-        invoice_row = db.execute("""
-            SELECT invoice_number FROM gst_invoice_dc_links 
-            WHERE dc_number = ? 
-            LIMIT 1
-        """, (dc_number,)).fetchone()
-        
-        if invoice_row:
-            return {
-                "has_invoice": True,
-                "invoice_number": invoice_row["invoice_number"]
-            }
-        else:
-            return {"has_invoice": False}
-    except Exception as e:
-        logger.warning(f"Error checking invoice for DC {dc_number}: {e}")
+    invoice_number = check_dc_has_invoice(dc_number, db)
+    
+    if invoice_number:
+        return {
+            "has_invoice": True,
+            "invoice_number": invoice_number
+        }
+    else:
         return {"has_invoice": False}
 
 
@@ -256,67 +229,42 @@ def check_dc_has_invoice(dc_number: str, db: sqlite3.Connection = Depends(get_db
 def update_dc(dc_number: str, dc: DCCreate, items: List[dict], db: sqlite3.Connection = Depends(get_db)):
     """Update existing Delivery Challan - BLOCKED if invoice exists"""
     
-    # Check if DC has invoice
-    invoice_check = check_dc_has_invoice(dc_number, db)
-    if invoice_check["has_invoice"]:
-        raise forbidden(
-            f"Cannot edit DC {dc_number} - already linked to invoice {invoice_check['invoice_number']}",
-            reason="DC has associated invoice"
-        )
-    
-    # Ensure DC number matches path
-    if dc.dc_number != dc_number:
-        raise bad_request("DC number in body must match URL")
-
-    logger.debug(f"Updating DC {dc_number} with {len(items)} items")
-
-    # Access DB for update with concurrency protection
+    # Use service layer with transaction protection
     try:
         # CRITICAL: Use BEGIN IMMEDIATE for SQLite concurrency protection
         db.execute("BEGIN IMMEDIATE")
         
         try:
-            # Validate items (inside transaction, excluding current DC from dispatch calculations)
-            from app.utils.validation_helpers import validate_dc_items
-            validate_dc_items(items, db, exclude_dc=dc_number)
-            
-            # Update Header
-            db.execute("""
-                UPDATE delivery_challans SET
-                dc_date = ?, po_number = ?, department_no = ?, consignee_name = ?, consignee_gstin = ?,
-                consignee_address = ?, inspection_company = ?, eway_bill_no = ?, vehicle_no = ?, lr_no = ?,
-                transporter = ?, mode_of_transport = ?, remarks = ?
-                WHERE dc_number = ?
-            """, (
-                dc.dc_date, dc.po_number, dc.department_no, dc.consignee_name,
-                dc.consignee_gstin, dc.consignee_address, dc.inspection_company, dc.eway_bill_no,
-                dc.vehicle_no, dc.lr_no, dc.transporter, dc.mode_of_transport, dc.remarks, dc_number
-            ))
-            
-            # Delete old items
-            db.execute("DELETE FROM delivery_challan_items WHERE dc_number = ?", (dc_number,))
-            
-            # Insert new items
-            for item in items:
-                item_id = str(uuid.uuid4())
-                db.execute("""
-                    INSERT INTO delivery_challan_items
-                    (id, dc_number, po_item_id, lot_no, dispatch_qty, hsn_code, hsn_rate)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    item_id, dc_number, item["po_item_id"], item.get("lot_no"),
-                    item["dispatch_qty"], item.get("hsn_code"), item.get("hsn_rate")
-                ))
-        
+            result = service_update_dc(dc_number, dc, items, db)
             db.commit()
-            logger.info(f"Successfully updated DC {dc_number}")
-            return {"success": True, "dc_number": dc_number}
             
+            # Service returns ServiceResult - extract data
+            if result.success:
+                return result.data
+            else:
+                # Should not happen if service raises DomainError
+                raise HTTPException(
+                    status_code=500,
+                    detail=result.message or "Unknown error"
+                )
+                
+        except DomainError as e:
+            # Convert domain error to HTTP response
+            db.rollback()
+            status_code = map_error_code_to_http_status(e.error_code)
+            raise HTTPException(
+                status_code=status_code,
+                detail={
+                    "message": e.message,
+                    "error_code": e.error_code.value,
+                    "details": e.details
+                }
+            )
         except Exception as e:
             db.rollback()
             raise
             
-    except Exception as e:
-        logger.error(f"Update failed: {e}")
-        raise bad_request(f"Update failed: {e}")
+    except sqlite3.IntegrityError as e:
+        logger.error(f"DC update failed due to integrity error: {e}", exc_info=e)
+        raise internal_error(f"Database integrity error: {str(e)}", e)
 
