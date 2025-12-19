@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Bell, CheckCircle, AlertTriangle, Info, X } from "lucide-react";
+import { api } from "@/lib/api";
 
 interface Alert {
     id: string;
@@ -72,7 +73,7 @@ export default function AlertsPanel() {
         <>
             {/* Alert Bell Button */}
             <button
-                onClick={() => setShowPanel(!showPanel)}
+                onClick={() => setIsOpen(!isOpen)}
                 className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
             >
                 <Bell className="w-5 h-5" />
@@ -84,11 +85,11 @@ export default function AlertsPanel() {
             </button>
 
             {/* Alerts Panel */}
-            {showPanel && (
+            {isOpen && (
                 <>
                     <div
                         className="fixed inset-0 bg-black bg-opacity-25 z-40"
-                        onClick={() => setShowPanel(false)}
+                        onClick={() => setIsOpen(false)}
                     />
                     <div className="fixed top-16 right-4 w-96 bg-white rounded-lg shadow-2xl z-50 max-h-[600px] flex flex-col">
                         {/* Header */}
@@ -102,7 +103,7 @@ export default function AlertsPanel() {
                                     </span>
                                 )}
                             </div>
-                            <button onClick={() => setShowPanel(false)}>
+                            <button onClick={() => setIsOpen(false)}>
                                 <X className="w-5 h-5 text-gray-400 hover:text-gray-600" />
                             </button>
                         </div>
@@ -144,7 +145,7 @@ export default function AlertsPanel() {
                                                     </div>
                                                 </div>
                                                 <button
-                                                    onClick={() => acknowledgeAlert(alert.id)}
+                                                    onClick={() => handleAcknowledge(alert.id)}
                                                     className="flex-shrink-0 p-1 hover:bg-white rounded transition-colors"
                                                     title="Acknowledge"
                                                 >

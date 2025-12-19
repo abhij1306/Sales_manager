@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Save, Plus, Trash2, Calendar, Truck, FileText, Package, AlertCircle, PlusCircle, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Calendar, Truck, FileText, Check, AlertCircle, Save } from 'lucide-react';
 import { api } from "@/lib/api";
 
 // Mock PO Notes Templates (Replace with API fetch if needed)
@@ -14,31 +14,15 @@ const PO_NOTE_TEMPLATES = [
 ];
 
 interface DCItemRow {
-    id: string; // Unique ID for the row (can be combination of item_no + lot_no)
+    id: string; // Unique ID for the row
     lot_no: string;
     description: string;
     ordered_qty: number;
     already_dispatched: number;
-    remaining_qty: number; // This is the authoritative remaining qty
+    remaining_qty: number;
     dispatch_quantity: number;
     po_item_id: string;
 }
-
-// Form Field Helper - Moved outside to prevent re-creation
-const Field = ({ label, value, onChange, placeholder = "", disabled = false, type = "text" }: any) => (
-    <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-        <input
-            type={type}
-            value={value}
-            onChange={e => onChange(e.target.value)}
-            placeholder={placeholder}
-            disabled={disabled}
-            style={{ color: '#111827' }}
-            className="w-full px-3 py-2 text-sm border-2 border-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium bg-white disabled:bg-gray-100"
-        />
-    </div>
-);
 
 const TableInput = ({ value, onChange, type = "text", placeholder = "", className = "", disabled = false }: any) => (
     <input
@@ -47,44 +31,35 @@ const TableInput = ({ value, onChange, type = "text", placeholder = "", classNam
         onChange={e => onChange(type === "number" ? parseFloat(e.target.value) || 0 : e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
-        className={`w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 ${className}`}
+        className={`w-full px-2 py-1 text-xs border border-border rounded focus:ring-1 focus:ring-primary focus:border-primary bg-white text-text-primary ${className} ${disabled ? 'bg-gray-50 text-text-secondary' : ''}`}
     />
 );
 
-export default function CreateDCPage() {
+function CreateDCPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const initialPoNumber = searchParams ? searchParams.get('po') : "";
-    const poId = initialPoNumber; // Alias for clarity
+    const poId = initialPoNumber;
 
-    const [activeTab, setActiveTab] = useState("basic");
     const [poNumber, setPONumber] = useState(initialPoNumber || "");
     const [items, setItems] = useState<DCItemRow[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [poData, setPOData] = useState<any>(null); // Store PO header data
+    const [poData, setPOData] = useState<any>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-
-    // Notes Logic
     const [notes, setNotes] = useState<string[]>([]);
     const [selectedTemplate, setSelectedTemplate] = useState("");
 
     const [formData, setFormData] = useState({
-        // Basic Info
         dc_number: "",
         dc_date: new Date().toISOString().split('T')[0],
         supplier_phone: "0755 – 4247748",
         supplier_gstin: "23AACFS6810L1Z7",
-        department_no: "", // Can be fetched from PO
-
-        // Transport Details
         mode_of_transport: "",
         vehicle_number: "",
         transporter_name: "",
         lr_number: "",
         eway_bill_number: "",
-        supplier_phone: '',
-        supplier_gstin: '',
         consignee_name: '',
         consignee_address: ''
     });
@@ -92,7 +67,6 @@ export default function CreateDCPage() {
     useEffect(() => {
         if (initialPoNumber) {
             handleLoadItems(initialPoNumber);
-            // Also fetch PO header data
             fetchPOData(initialPoNumber);
         }
     }, [initialPoNumber]);
@@ -106,8 +80,8 @@ export default function CreateDCPage() {
                     ...prev,
                     consignee_name: data.header?.consignee_name || '',
                     consignee_address: data.header?.consignee_address || '',
-                    supplier_phone: data.header?.supplier_phone || '', // Assuming API returns this
-                    supplier_gstin: data.header?.supplier_gstin || ''  // Assuming API returns this
+                    supplier_phone: data.header?.supplier_phone || '',
+                    supplier_gstin: data.header?.supplier_gstin || ''
                 }));
             }
         } catch (err) {
@@ -117,16 +91,11 @@ export default function CreateDCPage() {
 
     const handleLoadItems = async (po: string) => {
         if (!po) return;
-
         setIsLoading(true);
         setError(null);
-
         try {
-            // Use lot-wise reconciliation endpoint for better granularity
             const data = await api.getReconciliationLots(parseInt(po));
-
-            // Transform lot-wise data into DC item rows
-            const mappedItems: DCItemRow[] = data.lots.map((lot: any, index: number) => ({
+            const mappedItems: DCItemRow[] = data.lots.map((lot: any) => ({
                 id: `${lot.po_item_id}-${lot.lot_no}`,
                 lot_no: lot.lot_no?.toString() || "",
                 description: lot.material_description || "",
@@ -136,9 +105,7 @@ export default function CreateDCPage() {
                 dispatch_quantity: 0,
                 po_item_id: lot.po_item_id
             }));
-
             setItems(mappedItems);
-
             if (mappedItems.length === 0) {
                 setError("No items available for dispatch (all fully dispatched or no lots found)");
             }
@@ -154,12 +121,8 @@ export default function CreateDCPage() {
         const template = PO_NOTE_TEMPLATES.find(t => t.id === selectedTemplate);
         if (template) {
             setNotes([...notes, template.content]);
-            setSelectedTemplate(""); // Reset dropdown
+            setSelectedTemplate("");
         }
-    };
-
-    const addCustomNote = () => {
-        setNotes([...notes, ""]); // Add an empty custom note
     };
 
     const handleRemoveNote = (index: number) => {
@@ -202,7 +165,6 @@ export default function CreateDCPage() {
         setError(null);
         setIsSubmitting(true);
 
-        // Validate
         if (!formData.dc_number || !formData.dc_date) {
             setError("DC number and date are required");
             setIsSubmitting(false);
@@ -215,7 +177,6 @@ export default function CreateDCPage() {
             return;
         }
 
-        // Check all items have dispatch quantity
         const invalidItems = items.filter(item => !item.dispatch_quantity || item.dispatch_quantity <= 0);
         if (invalidItems.length > 0) {
             setError("All items must have a dispatch quantity greater than 0");
@@ -247,8 +208,6 @@ export default function CreateDCPage() {
             }));
 
             await api.createDC(dcPayload, itemsPayload);
-
-            // Success - navigate to DC detail or list
             router.push(`/dc/${formData.dc_number}`);
         } catch (err) {
             console.error("Failed to create DC", err);
@@ -258,39 +217,37 @@ export default function CreateDCPage() {
         }
     };
 
-
     return (
-        <div className="p-4 max-w-[98%] mx-auto pb-24">
+        <div className="space-y-6 pb-24">
             {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
                     <button
                         onClick={() => router.back()}
-                        className="text-gray-500 hover:text-gray-900"
+                        className="text-text-secondary hover:text-text-primary transition-colors p-1"
                     >
-                        <ArrowLeft className="w-4 h-4" />
+                        <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
-                        <h1 className="text-xl font-bold text-gray-900">Create Transport Challan</h1>
-                        <p className="text-xs text-gray-500">Generate a new delivery challan for PO: {poId}</p>
+                        <h1 className="text-[20px] font-semibold text-text-primary tracking-tight">Create Transport Challan</h1>
+                        <p className="text-[13px] text-text-secondary mt-1">Generate a new delivery challan for PO: {poId}</p>
                     </div>
                 </div>
                 <div className="flex gap-3 items-center">
-                    {/* PO Search Bar - Only show if not coming from PO */}
                     {!initialPoNumber && (
                         <>
                             <input
                                 type="text"
                                 value={poNumber}
                                 onChange={(e) => setPONumber(e.target.value)}
-                                className="w-48 px-3 py-2 border-2 border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                className="w-48 px-3 py-2 border border-border rounded-lg text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
                                 placeholder="PO Number"
                                 disabled={isLoading}
                             />
                             <button
                                 onClick={() => handleLoadItems(poNumber)}
                                 disabled={isLoading || !poNumber}
-                                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
                                 {isLoading ? "Loading..." : "Fetch Items"}
                             </button>
@@ -299,220 +256,218 @@ export default function CreateDCPage() {
                 </div>
             </div>
 
-            {/* PO Reference - Show when coming from PO */}
+            {/* PO Reference */}
             {initialPoNumber && poData && (
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-xs text-blue-600 font-medium">Creating DC from Purchase Order</p>
-                            <p className="text-[10px] text-blue-500 mt-0.5">
-                                PO Date: {poData.po_date || 'N/A'}
-                            </p>
+                <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-blue-100 p-2 rounded-lg text-primary">
+                            <FileText className="w-4 h-4" />
                         </div>
-                        <a
-                            href={`/po/${initialPoNumber}`}
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium underline"
-                        >
-                            PO #{initialPoNumber}
-                        </a>
+                        <div>
+                            <p className="text-[13px] text-primary font-medium">Creating DC from Purchase Order</p>
+                            <p className="text-[11px] text-blue-600/80">PO Date: {poData.po_date || 'N/A'}</p>
+                        </div>
                     </div>
+                    <a
+                        href={`/po/${initialPoNumber}`}
+                        className="text-[12px] text-primary hover:text-blue-700 font-medium underline flex items-center gap-1"
+                    >
+                        View PO #{initialPoNumber} <ArrowLeft className="w-3 h-3 rotate-180" />
+                    </a>
                 </div>
             )}
 
             {/* Error Display */}
             {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm text-red-800 font-medium">{error}</p>
+                <div className="bg-red-50 border border-red-100 rounded-lg p-3 flex items-start gap-3 text-danger">
+                    <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                    <p className="text-sm font-medium">{error}</p>
                 </div>
             )}
 
-            {/* Combined Basic Details (3 columns x 2 rows + Address) */}
-            <div className="bg-white rounded border border-gray-200 mb-4">
-                <div className="p-4 border-b border-gray-200 bg-gray-50">
-                    <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-blue-600" />
+            {/* Basic Details Card */}
+            <div className="glass-card overflow-hidden">
+                <div className="p-4 border-b border-border bg-gray-50/30">
+                    <h2 className="text-[14px] font-semibold text-text-primary flex items-center gap-2">
+                        <Truck className="w-4 h-4 text-primary" />
                         Basic Details
                     </h2>
                 </div>
-                <div className="p-4 grid grid-cols-3 gap-4">
-                    {/* Row 1 */}
-                    <div>
-                        <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">DC Number</label>
-                        <div className="font-mono text-sm font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded border border-gray-300 w-full">
-                            {formData.dc_number || 'Auto-generated'}
-                        </div>
+                <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">DC Number</label>
+                        <input
+                            type="text"
+                            value={formData.dc_number}
+                            onChange={(e) => setFormData({ ...formData, dc_number: e.target.value })}
+                            className="w-full px-3 py-2 border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary bg-white text-sm"
+                            placeholder="Enter DC No."
+                        />
                     </div>
-                    <div>
-                        <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">Date</label>
+                    <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Date</label>
                         <input
                             type="date"
                             value={formData.dc_date}
                             onChange={(e) => setFormData({ ...formData, dc_date: e.target.value })}
-                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary bg-white text-sm"
                         />
                     </div>
-                    <div>
-                        <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">Vehicle Number</label>
+                    <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Vehicle Number</label>
                         <input
                             type="text"
                             value={formData.vehicle_number}
                             onChange={(e) => setFormData({ ...formData, vehicle_number: e.target.value })}
-                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-                            placeholder="Enter Vehicle No"
+                            className="w-full px-3 py-2 border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary bg-white text-sm"
+                            placeholder="e.g. MP04-AA-1234"
                         />
                     </div>
 
-                    {/* Row 2 */}
-                    <div>
-                        <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">Supplier Phone No</label>
+                    <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Supplier Phone</label>
                         <input
                             type="text"
                             value={formData.supplier_phone}
                             onChange={(e) => setFormData({ ...formData, supplier_phone: e.target.value })}
-                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-                            placeholder="Enter Phone No"
+                            className="w-full px-3 py-2 border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary bg-white text-sm"
                         />
                     </div>
-                    <div>
-                        <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">Supplier GSTIN</label>
+                    <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Supplier GSTIN</label>
                         <input
                             type="text"
                             value={formData.supplier_gstin}
                             onChange={(e) => setFormData({ ...formData, supplier_gstin: e.target.value })}
-                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-                            placeholder="Enter GSTIN"
+                            className="w-full px-3 py-2 border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary bg-white text-sm"
                         />
                     </div>
-                    <div>
-                        <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">Consignee Name</label>
+                    <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Consignee Name</label>
                         <input
                             type="text"
                             value={formData.consignee_name}
                             onChange={(e) => setFormData({ ...formData, consignee_name: e.target.value })}
-                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 text-gray-900 font-medium"
-                            placeholder="Enter Consignee Name"
+                            className="w-full px-3 py-2 border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary bg-white text-sm"
                         />
                     </div>
-
-                    {/* Row 3 (Full width address) */}
-                    <div className="col-span-3">
-                        <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">Consignee Address</label>
-                        <textarea
+                    <div className="col-span-1 md:col-span-3 space-y-1">
+                        <label className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Consignee Address</label>
+                        <input
+                            type="text"
                             value={formData.consignee_address}
                             onChange={(e) => setFormData({ ...formData, consignee_address: e.target.value })}
-                            rows={2}
-                            className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 text-gray-900 font-medium"
-                            placeholder="Enter Consignee Address"
+                            className="w-full px-3 py-2 border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary bg-white text-sm"
                         />
                     </div>
                 </div>
             </div>
 
             {/* Items Table */}
-            <div className="bg-white rounded-lg border border-gray-200 mb-4 font-mono text-sm">
-                <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
-                    <h3 className="font-semibold text-gray-900">Items Dispatched</h3>
-                    <button onClick={handleAddItem} className="text-blue-600 hover:text-blue-700 text-xs font-medium flex items-center">
-                        <Plus className="w-4 h-4 mr-1" /> Add Row
+            <div className="glass-card overflow-hidden">
+                <div className="flex items-center justify-between p-4 border-b border-border bg-gray-50/30">
+                    <h3 className="text-[14px] font-semibold text-text-primary">Items Dispatched</h3>
+                    <button onClick={handleAddItem} className="text-primary hover:text-blue-700 text-xs font-medium flex items-center gap-1 transition-colors">
+                        <Plus className="w-3.5 h-3.5" /> Add Row
                     </button>
                 </div>
-                <table className="w-full">
-                    <thead>
-                        <tr className="bg-gray-50 text-left">
-                            <th className="px-3 py-2 font-medium text-gray-600 w-16 text-xs">Lot</th>
-                            <th className="px-3 py-2 font-medium text-gray-600 text-xs">Description</th>
-                            <th className="px-3 py-2 font-medium text-gray-600 w-20 text-xs">Ordered</th>
-                            <th className="px-3 py-2 font-medium text-gray-600 w-20 text-xs">Sent</th>
-                            <th className="px-3 py-2 font-medium text-gray-600 w-20 text-xs">Rem.</th>
-                            <th className="px-3 py-2 font-medium text-gray-600 w-24 text-xs">Dispatch</th>
-                            <th className="px-3 py-2 w-12"></th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                        {items.length > 0 ? items.map((item, idx) => (
-                            <tr key={idx} className="group hover:bg-gray-50">
-                                <td className="p-2">
-                                    <TableInput
-                                        type="text"
-                                        value={item.lot_no}
-                                        onChange={(v: string) => handleItemChange(item.id, 'lot_no', v)}
-                                        readOnly
-                                    />
-                                </td>
-                                <td className="p-2">
-                                    <TableInput
-                                        type="text"
-                                        value={item.description}
-                                        onChange={(v: string) => handleItemChange(item.id, 'description', v)}
-                                        readOnly
-                                    />
-                                </td>
-                                <td className="p-2">
-                                    <div className="px-2 py-1 text-xs text-gray-600">{item.ordered_qty}</div>
-                                </td>
-                                <td className="p-2">
-                                    <div className="px-2 py-1 text-xs text-gray-600">{item.already_dispatched}</div>
-                                </td>
-                                <td className="p-2">
-                                    <div className="px-2 py-1 text-xs font-semibold text-gray-800">{item.remaining_qty}</div>
-                                </td>
-                                <td className="p-2">
-                                    <TableInput
-                                        type="number"
-                                        value={item.dispatch_quantity}
-                                        onChange={(v: number) => handleItemChange(item.id, 'dispatch_quantity', v)}
-                                        placeholder="0"
-                                        max={item.remaining_qty}
-                                        className="border-gray-600 font-bold"
-                                    />
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                    <button
-                                        onClick={() => handleDeleteItem(item.id)}
-                                        className="text-red-500 hover:text-red-700 bg-red-50 p-1 rounded transition-colors"
-                                    >
-                                        <Trash2 className="w-3 h-3" />
-                                    </button>
-                                </td>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-gray-50/50 text-text-secondary border-b border-border text-[11px] uppercase tracking-wider font-semibold">
+                                <th className="px-4 py-3 w-16">Lot</th>
+                                <th className="px-4 py-3">Description</th>
+                                <th className="px-4 py-3 w-24 text-right">Ordered</th>
+                                <th className="px-4 py-3 w-24 text-right">Sent</th>
+                                <th className="px-4 py-3 w-24 text-right">Rem.</th>
+                                <th className="px-4 py-3 w-32 text-right">Dispatch</th>
+                                <th className="px-4 py-3 w-12 text-center"></th>
                             </tr>
-                        )) : (
-                            <tr>
-                                <td colSpan={7} className="text-center py-6 text-gray-500 italic text-xs">
-                                    No items added. Fetch from PO or add manually.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-border/50 bg-white">
+                            {items.length > 0 ? items.map((item, idx) => (
+                                <tr key={idx} className="hover:bg-gray-50/50 transition-colors group">
+                                    <td className="px-4 py-2">
+                                        <TableInput
+                                            value={item.lot_no}
+                                            onChange={(v: string) => handleItemChange(item.id, 'lot_no', v)}
+                                            readOnly
+                                            disabled
+                                            className="text-center"
+                                        />
+                                    </td>
+                                    <td className="px-4 py-2">
+                                        <TableInput
+                                            value={item.description}
+                                            onChange={(v: string) => handleItemChange(item.id, 'description', v)}
+                                            readOnly
+                                            disabled
+                                        />
+                                    </td>
+                                    <td className="px-4 py-2 text-right text-[13px] text-text-secondary font-medium">{item.ordered_qty}</td>
+                                    <td className="px-4 py-2 text-right text-[13px] text-text-secondary font-medium">{item.already_dispatched}</td>
+                                    <td className="px-4 py-2 text-right text-[13px] text-text-primary font-bold">{item.remaining_qty}</td>
+                                    <td className="px-4 py-2">
+                                        <TableInput
+                                            type="number"
+                                            value={item.dispatch_quantity}
+                                            onChange={(v: number) => handleItemChange(item.id, 'dispatch_quantity', v)}
+                                            placeholder="0"
+                                            max={item.remaining_qty}
+                                            className="text-right font-bold text-primary border-primary/30 focus:border-primary"
+                                        />
+                                    </td>
+                                    <td className="px-4 py-2 text-center">
+                                        <button
+                                            onClick={() => handleDeleteItem(item.id)}
+                                            className="text-text-secondary hover:text-danger p-1.5 rounded transition-colors hover:bg-red-50"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            )) : (
+                                <tr>
+                                    <td colSpan={7} className="text-center py-8 text-text-secondary text-sm italic">
+                                        No items added. Fetch from PO or add manually.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {/* PO Notes Section */}
-            <div className="bg-white rounded border border-gray-200 p-4">
-                <div className="mb-3">
-                    <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-blue-600" />
+            <div className="glass-card p-4">
+                <div className="mb-4">
+                    <h2 className="text-[14px] font-semibold text-text-primary flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-primary" />
                         PO Standard Notes
                     </h2>
-                    <p className="text-[10px] text-gray-500 mt-0.5">Select notes to include in the challan</p>
+                    <p className="text-[12px] text-text-secondary mt-0.5">Select notes to include in the challan</p>
                 </div>
 
-                <div className="flex gap-2 mb-3">
-                    <div className="flex-1">
+                <div className="flex gap-2 mb-4">
+                    <div className="flex-1 relative">
                         <select
                             value={selectedTemplate}
                             onChange={(e) => setSelectedTemplate(e.target.value)}
-                            className="w-full border border-gray-300 rounded px-2 py-1 text-xs bg-white"
+                            className="w-full appearance-none px-3 py-2 border border-border rounded-lg text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer text-text-primary"
                         >
                             <option value="">-- Select Note Template --</option>
                             {PO_NOTE_TEMPLATES.map(t => (
                                 <option key={t.id} value={t.id}>{t.title}</option>
                             ))}
                         </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-text-secondary">
+                            <Plus className="h-4 w-4 rotate-45" />
+                        </div>
                     </div>
                     <button
                         onClick={handleAddNote}
                         disabled={!selectedTemplate}
-                        className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 text-sm disabled:opacity-50 disabled:bg-gray-300"
+                        className="px-4 py-2 bg-text-primary text-white rounded-lg hover:bg-black text-sm font-medium disabled:opacity-50 disabled:bg-gray-300 transition-colors"
                     >
                         Add Selected Note
                     </button>
@@ -525,23 +480,53 @@ export default function CreateDCPage() {
                                 value={note}
                                 onChange={(e) => handleNoteChange(index, e.target.value)}
                                 rows={2}
-                                className="flex-1 border-2 border-gray-400 rounded-lg text-sm text-gray-900 font-medium focus:ring-blue-500 focus:border-blue-500 p-3"
+                                className="flex-1 border border-border rounded-lg text-sm text-text-primary py-2 px-3 focus:ring-1 focus:ring-primary focus:border-primary transition-all bg-white"
                             />
                             <button
                                 onClick={() => handleRemoveNote(index)}
-                                className="mt-2 text-red-400 hover:text-red-600 p-1"
+                                className="mt-2 text-text-secondary hover:text-danger p-1 transition-colors"
                             >
                                 <Trash2 className="w-4 h-4" />
                             </button>
                         </div>
                     ))}
                     {notes.length === 0 && (
-                        <div className="text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-300 text-gray-400 text-sm">
-                            No notes added yet.
+                        <div className="text-center py-6 bg-gray-50/50 rounded-lg border border-dashed border-border text-text-secondary text-sm">
+                            No notes added yet. Select a template above.
                         </div>
                     )}
                 </div>
             </div>
+
+            {/* Footer Action Bar */}
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-border z-20 flex justify-end gap-3 max-w-[1240px] mx-auto w-full"> {/* Adjust max-w to match layout */}
+                <button
+                    onClick={() => router.back()}
+                    className="px-4 py-2 text-sm font-medium text-text-secondary bg-white border border-border rounded-lg hover:bg-gray-50 transition-colors"
+                    disabled={isSubmitting}
+                >
+                    Cancel
+                </button>
+                <button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting}
+                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                    {isSubmitting ? 'Saving...' : (
+                        <>
+                            <Save className="w-4 h-4" /> Save Challan
+                        </>
+                    )}
+                </button>
+            </div>
         </div>
+    );
+}
+
+export default function CreateDCPage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="text-primary font-medium">Loading...</div></div>}>
+            <CreateDCPageContent />
+        </Suspense>
     );
 }

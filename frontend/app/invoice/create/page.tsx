@@ -1,20 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Save, FileText, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, FileText, Loader2, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
 
-export default function CreateInvoicePage() {
+function CreateInvoicePageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const dcId = searchParams.get('dc');
 
-    const [loading, setLoading] = useState(!!dcId); // Loading if fetching DC data
+    const [loading, setLoading] = useState(!!dcId);
     const [saving, setSaving] = useState(false);
     const [dcData, setDcData] = useState<any>(null);
 
-    // Form State
     const [formData, setFormData] = useState({
         invoice_number: '',
         invoice_date: new Date().toISOString().split('T')[0],
@@ -35,18 +34,17 @@ export default function CreateInvoicePage() {
 
         const loadDC = async () => {
             try {
-                // Fetch DC Data to auto-populate
                 const data = await api.getDCDetail(dcId);
                 setDcData(data);
                 if (data.header) {
                     setFormData(prev => ({
                         ...prev,
-                        linked_dc_numbers: data.header.dc_number,
+                        linked_dc_numbers: data.header.dc_number || '',
                         po_numbers: data.header.po_number?.toString() || '',
-                        customer_gstin: data.header.consignee_gstin || '',
+                        customer_gstin: data.header.supplier_gstin || data.header.consignee_gstin || '',
+                        place_of_supply: data.header.consignee_address?.split(',').pop()?.trim() || '',
                     }));
                 }
-                // Auto-calculate taxable value from items
                 if (data.items) {
                     const totalTaxable = data.items.reduce((acc: number, item: any) => {
                         const qty = item.dispatch_qty || 0;
@@ -65,7 +63,6 @@ export default function CreateInvoicePage() {
         loadDC();
     }, [dcId]);
 
-    // Format helpers
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
@@ -73,7 +70,6 @@ export default function CreateInvoicePage() {
         }).format(amount);
     };
 
-    // Calculations
     useEffect(() => {
         const taxable = Number(formData.taxable_value) || 0;
         const cgst = Number(formData.cgst) || 0;
@@ -92,14 +88,10 @@ export default function CreateInvoicePage() {
 
         setSaving(true);
         try {
-            // Parse DC numbers
             const dcNumbers = formData.linked_dc_numbers.split(',').map(s => s.trim()).filter(Boolean);
-
-            // Call API
             await api.createInvoice(formData, dcNumbers);
-
-            alert('Invoice Created Successfully!');
-            router.push('/invoice'); // Redirect to list
+            // alert('Invoice Created Successfully!'); // Optional: Remove alert, let redirect handle UX
+            router.push('/invoice');
         } catch (err: any) {
             console.error("Save failed:", err);
             alert("Error saving invoice: " + err.message);
@@ -111,15 +103,15 @@ export default function CreateInvoicePage() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-full">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
         );
     }
 
     const Input = ({ label, field, type = "text", placeholder = "", required = false, readOnly = false }: any) => (
         <div>
-            <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">
-                {label} {required && <span className="text-red-500">*</span>}
+            <label className="block text-[11px] uppercase tracking-wider font-semibold text-text-secondary mb-1">
+                {label} {required && <span className="text-danger">*</span>}
             </label>
             <input
                 type={type}
@@ -127,144 +119,146 @@ export default function CreateInvoicePage() {
                 onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
                 readOnly={readOnly}
                 placeholder={placeholder}
-                className={`w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${readOnly ? 'bg-gray-50 text-gray-500 border-gray-200' : 'border-gray-300 text-gray-900'
-                    }`}
+                className={`w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary bg-white ${readOnly ? 'bg-gray-50 text-text-secondary' : ''}`}
             />
         </div>
     );
 
-    // Numeric input handler
     const handleNumberChange = (field: string, val: string) => {
         setFormData({ ...formData, [field]: parseFloat(val) || 0 });
     };
 
     const NumberInput = ({ label, field }: any) => (
         <div>
-            <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">{label}</label>
+            <label className="block text-[11px] uppercase tracking-wider font-semibold text-text-secondary mb-1">{label}</label>
             <div className="relative">
-                <span className="absolute left-2 top-1.5 text-gray-500 text-xs">₹</span>
+                <span className="absolute left-3 top-2 text-text-secondary text-xs font-semibold">₹</span>
                 <input
                     type="number"
                     value={formData[field as keyof typeof formData] || ''}
                     onChange={(e) => handleNumberChange(field, e.target.value)}
-                    className="w-full pl-6 pr-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-right text-gray-900"
+                    className="w-full pl-7 pr-3 py-2 border border-border rounded-lg text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary font-bold text-right text-text-primary"
                 />
             </div>
         </div>
     );
 
     return (
-        <div className="p-4 max-w-[98%] mx-auto pb-24">
+        <div className="space-y-6 pb-24">
             {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                    <button onClick={() => router.back()} className="text-gray-500 hover:text-gray-900">
-                        <ArrowLeft className="w-4 h-4" />
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <button onClick={() => router.back()} className="text-text-secondary hover:text-text-primary transition-colors p-1">
+                        <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
-                        <h1 className="text-xl font-bold text-gray-900">Create GST Invoice</h1>
-                        <p className="text-xs text-gray-500">
+                        <h1 className="text-[20px] font-semibold text-text-primary tracking-tight">Create GST Invoice</h1>
+                        <p className="text-[13px] text-text-secondary mt-1">
                             {dcId ? `Generating from DC #${formData.linked_dc_numbers}` : 'Create New Invoice'}
                         </p>
                     </div>
                 </div>
-                <div className="flex gap-3">
-                    <button
-                        onClick={() => router.back()}
-                        className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5"
-                    >
-                        {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                        Save Invoice
-                    </button>
-                </div>
             </div>
 
-            <div className="grid grid-cols-12 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                 {/* Main Form */}
-                <div className="col-span-8 space-y-4">
-                    {/* Combined Details */}
-                    <div className="bg-white rounded border border-gray-200 p-4">
-                        <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-blue-600" />
-                            Basic Details
-                        </h3>
-                        <div className="grid grid-cols-3 gap-4">
-                            {/* Row 1 */}
+                <div className="md:col-span-8 space-y-6">
+                    {/* Basic Details Card */}
+                    <div className="glass-card overflow-hidden">
+                        <div className="p-4 border-b border-border bg-gray-50/30">
+                            <h3 className="text-[14px] font-semibold text-text-primary flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-primary" />
+                                Basic Details
+                            </h3>
+                        </div>
+                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             <Input label="Invoice Number" field="invoice_number" required placeholder="e.g. INV/23-24/001" />
                             <Input label="Invoice Date" field="invoice_date" type="date" required />
                             <Input label="Place of Supply" field="place_of_supply" placeholder="State Name / Code" />
-
-                            {/* Row 2 */}
                             <Input label="PO Number(s)" field="po_numbers" placeholder="Comma separated PO numbers" />
                             <Input label="Customer GSTIN" field="customer_gstin" />
                             <Input label="Linked DC(s)" field="linked_dc_numbers" placeholder="Comma separated DC numbers" />
                         </div>
                     </div>
 
-                    {/* Remarks */}
-                    <div className="bg-white rounded border border-gray-200 p-4">
-                        <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-blue-600" />
-                            Additional Notes
-                        </h3>
-                        <textarea
-                            value={formData.remarks}
-                            onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                            className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 h-20"
-                            placeholder="Terms of delivery, payment terms, or any other remarks..."
-                        />
+                    {/* Remarks Card */}
+                    <div className="glass-card overflow-hidden">
+                        <div className="p-4 border-b border-border bg-gray-50/30">
+                            <h3 className="text-[14px] font-semibold text-text-primary flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-primary" />
+                                Additional Notes
+                            </h3>
+                        </div>
+                        <div className="p-4">
+                            <textarea
+                                value={formData.remarks}
+                                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary h-24 text-text-primary"
+                                placeholder="Terms of delivery, payment terms, or any other remarks..."
+                            />
+                        </div>
                     </div>
                 </div>
 
                 {/* Financials Sidebar */}
-                <div className="col-span-4 space-y-4">
-                    <div className="bg-white rounded border border-gray-200 p-4 shadow-sm">
-                        <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-blue-600" />
-                            Financials
-                        </h3>
-                        <div className="space-y-4">
+                <div className="md:col-span-4 space-y-6">
+                    <div className="glass-card overflow-hidden">
+                        <div className="p-4 border-b border-border bg-gray-50/30">
+                            <h3 className="text-[14px] font-semibold text-text-primary flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-primary" />
+                                Financials
+                            </h3>
+                        </div>
+                        <div className="p-6 space-y-4">
                             <NumberInput label="Taxable Value" field="taxable_value" />
 
-                            <div className="pt-3 border-t border-gray-100 space-y-3">
-                                <div className="grid grid-cols-2 gap-3">
+                            <div className="pt-4 border-t border-border space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
                                     <NumberInput label="CGST" field="cgst" />
                                     <NumberInput label="SGST" field="sgst" />
                                 </div>
                                 <NumberInput label="IGST" field="igst" />
                             </div>
 
-                            <div className="pt-4 border-t border-gray-200 mt-4">
+                            <div className="pt-4 border-t border-border mt-2">
                                 <div className="flex justify-between items-end mb-2">
-                                    <label className="text-sm font-semibold text-gray-900">Total Invoice Value</label>
-                                    <span className="text-2xl font-bold text-blue-600">
+                                    <label className="text-[13px] font-semibold text-text-primary">Total Invoice Value</label>
+                                    <span className="text-[20px] font-bold text-primary">
                                         {formatCurrency(formData.total_invoice_value)}
                                     </span>
                                 </div>
-                                <p className="text-xs text-gray-500 text-right">Includes all taxes</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Helper Info */}
-                    <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                        <div className="flex gap-2">
-                            <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                            <div className="text-xs text-blue-900">
-                                <p className="font-semibold mb-0.5">Auto-Calculation</p>
-                                <p>Total value is automatically calculated as Taxable + CGST + SGST + IGST.</p>
+                                <p className="text-[11px] text-text-secondary text-right">Includes all taxes</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Float Action Bar */}
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-border z-20 flex justify-end gap-3 max-w-[1240px] mx-auto w-full">
+                <button
+                    onClick={() => router.back()}
+                    className="px-4 py-2 text-sm font-medium text-text-secondary bg-white border border-border rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                    Cancel
+                </button>
+                <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 text-sm font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Save Invoice
+                </button>
+            </div>
         </div>
+    );
+}
+
+export default function CreateInvoicePage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+            <CreateInvoicePageContent />
+        </Suspense>
     );
 }

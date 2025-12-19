@@ -1,26 +1,89 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* 2.2 Color Palette (STRICT) */
+  --primary: #2563EB;
+  --primary-foreground: #FFFFFF;
+  
+  --success: #16A34A;
+  --success-foreground: #FFFFFF;
+  
+  --warning: #F59E0B;
+  --warning-foreground: #FFFFFF;
+  
+  --danger: #DC2626;
+  --danger-foreground: #FFFFFF;
+  
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  
+  --border: #E5E7EB;
+  --background: #F8FAFC;
+  --card-bg: rgba(255, 255, 255, 0.85);
 }
 
 @theme inline {
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  
+  --color-border: var(--border);
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-card-bg: var(--card-bg);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: 'Inter', sans-serif;
 }
 
 body {
   background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 2.3 Glassmorphism Rules */
+.glass-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); /* Very soft shadow */
+  backdrop-filter: blur(8px); /* Subtle blur, though spec said "No blur filters" on cards specifically, usually glass implies some backdrop. If strict "No blur filters" is required for performance or specific look, remove this. Re-reading: "❌ No blur filters". Okay, removing backdrop-filter.*/
+  backdrop-filter: none;
+}
+
+/* Re-reading Strict Rules: "❌ No blur filters" on Cards? 
+   "Cards: Background: rgba(255,255,255,0.85), ... ❌ No blur filters"
+   Okay, I will strictly follow "No blur filters".
+*/
+
+.glass-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05); /* very soft, no glow */
+}
+
+/* Typography Overrides for consistency */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Form Standards */
+input, select, textarea {
+  border-color: var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+  border-color: transparent;
 }

@@ -20,18 +20,20 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <div className="flex h-screen bg-gray-50">
+        <div className="flex h-screen bg-background">
           <NavRail />
           <div className="flex-1 flex flex-col overflow-hidden">
-            <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Sales Manager</h2>
+            <header className="bg-white border-b border-border px-8 py-4 flex items-center justify-between shrink-0">
+              <h2 className="text-[20px] font-semibold text-text-primary">Sales Manager</h2>
               <div className="flex items-center gap-4">
                 <GlobalSearch />
                 {/* <AlertsPanel /> */} {/* TODO: Enable when alerts functionality is ready */}
               </div>
             </header>
-            <main className="flex-1 overflow-auto">
-              {children}
+            <main className="flex-1 overflow-auto bg-background p-6">
+              <div className="mx-auto max-w-[1200px] w-full">
+                {children}
+              </div>
             </main>
           </div>
         </div>

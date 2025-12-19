@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowLeft, Edit2, Save, X, FileText, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Edit2, Save, X, FileText, Plus, Trash2, Truck, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
 
-// Mock PO Notes Templates
 const PO_NOTE_TEMPLATES = [
     { id: 't1', title: 'Standard Dispatch Note', content: 'Material is being dispatched against PO No: ... dated ...' },
     { id: 't2', title: 'Warranty Note', content: 'Standard Manufacturer Warranty applicable.' },
@@ -60,9 +59,7 @@ export default function DCDetailPage() {
 
         const loadDCData = async () => {
             try {
-                // Load DC data
                 const data = await api.getDCDetail(dcId);
-
                 if (data.header) {
                     setFormData({
                         dc_number: data.header.dc_number || "",
@@ -80,7 +77,6 @@ export default function DCDetailPage() {
                         eway_bill_number: data.header.eway_bill_no || "",
                     });
 
-                    // Transform items
                     if (data.items && data.items.length > 0) {
                         const mappedItems = data.items.map((item: any, idx: number) => ({
                             id: `item-${idx}`,
@@ -97,11 +93,10 @@ export default function DCDetailPage() {
                     }
 
                     if (data.header.remarks) {
-                        setNotes([data.header.remarks]);
+                        setNotes([...data.header.remarks.split('\n\n')]);
                     }
                 }
 
-                // Check if DC has Invoice
                 const invoiceData = await api.checkDCHasInvoice(dcId);
                 if (invoiceData && invoiceData.has_invoice) {
                     setHasInvoice(true);
@@ -171,7 +166,6 @@ export default function DCDetailPage() {
 
     const handleAddItem = () => {
         alert("Adding items to existing DC is mostly restricted to existing PO lots. Please create new DC for new items or ensure you map PO Item ID correctly.");
-        // For now, disable add row in edit mode to avoid complexity of selecting PO items
     };
 
     const handleSave = async () => {
@@ -198,9 +192,8 @@ export default function DCDetailPage() {
             }));
 
             await api.updateDC(dcId, dcPayload, itemsPayload);
-            alert("DC updated successfully");
             setEditMode(false);
-            window.location.reload(); // Reload to refresh data
+            window.location.reload();
         } catch (err: any) {
             console.error("Failed to update DC", err);
             setError(err.message);
@@ -212,45 +205,43 @@ export default function DCDetailPage() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-full">
-                <div className="text-gray-500">Loading...</div>
+                <div className="text-primary font-medium">Loading...</div>
             </div>
         );
     }
 
-    // Form Field Helper - Updated for visibility and compactness
     const Field = ({ label, value, onChange, placeholder = "", disabled = false }: any) => (
         <div>
-            <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">{label}</label>
+            <label className="block text-[11px] uppercase tracking-wider font-semibold text-text-secondary mb-1">{label}</label>
             <input
                 type="text"
                 value={value}
                 onChange={e => onChange(e.target.value)}
                 placeholder={placeholder}
                 disabled={disabled || !editMode}
-                style={{ color: '#111827' }}
-                className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-medium bg-white disabled:bg-gray-50"
+                className={`w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary bg-white ${disabled || !editMode ? 'bg-gray-50 text-text-secondary' : ''}`}
             />
         </div>
     );
 
     return (
-        <div className="p-4 max-w-[98%] mx-auto">
+        <div className="space-y-6 pb-24">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <button onClick={() => router.back()} className="text-gray-600 hover:text-gray-900">
+                    <button onClick={() => router.back()} className="text-text-secondary hover:text-text-primary p-1">
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
-                        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-3">
+                        <h1 className="text-[20px] font-semibold text-text-primary flex items-center gap-3">
                             Delivery Challan {formData.dc_number}
                             {formData.po_number && (
-                                <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                                    PO: <button onClick={() => router.push(`/po/${formData.po_number}`)} className="text-blue-600 hover:underline">{formData.po_number}</button>
+                                <span className="text-[11px] font-medium text-text-secondary bg-gray-100 px-2 py-0.5 rounded border border-border flex items-center gap-1">
+                                    PO: <button onClick={() => router.push(`/po/${formData.po_number}`)} className="text-primary hover:underline">{formData.po_number}</button>
                                 </span>
                             )}
                         </h1>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-[13px] text-text-secondary mt-0.5">
                             Date: {formData.dc_date}
                         </p>
                     </div>
@@ -260,17 +251,15 @@ export default function DCDetailPage() {
                         <>
                             <button
                                 onClick={() => setEditMode(false)}
-                                className="px-3 py-1.5 text-xs text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
+                                className="px-4 py-2 text-sm font-medium text-text-secondary bg-white border border-border rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
                             >
-                                <X className="w-3 h-3 inline mr-1" />
-                                Cancel
+                                <X className="w-4 h-4" /> Cancel
                             </button>
                             <button
                                 onClick={handleSave}
-                                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                                className="px-4 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm"
                             >
-                                <Save className="w-3 h-3 inline mr-1" />
-                                Save
+                                <Save className="w-4 h-4" /> Save
                             </button>
                         </>
                     ) : (
@@ -283,99 +272,102 @@ export default function DCDetailPage() {
                                         router.push(`/invoice/create?dc=${dcId}`);
                                     }
                                 }}
-                                className={`px-3 py-1.5 text-xs text-white rounded flex items-center gap-1.5 ${hasInvoice
-                                    ? 'bg-blue-600 hover:bg-blue-700'
-                                    : 'bg-green-600 hover:bg-green-700'
+                                className={`px-4 py-2 text-sm font-medium text-white rounded-lg flex items-center gap-2 shadow-sm transition-colors ${hasInvoice
+                                    ? 'bg-primary hover:bg-blue-700'
+                                    : 'bg-success hover:bg-green-700'
                                     }`}
                             >
-                                <FileText className="w-3 h-3" />
+                                <FileText className="w-4 h-4" />
                                 {hasInvoice ? 'View Invoice' : 'Create Invoice'}
                             </button>
                             <button
                                 onClick={() => setEditMode(true)}
                                 disabled={hasInvoice}
-                                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-4 py-2 text-sm font-medium bg-white text-text-primary border border-border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
                                 title={hasInvoice ? "Cannot edit DC - already has invoice" : ""}
                             >
-                                <Edit2 className="w-3 h-3 inline mr-1" />
-                                Edit
+                                <Edit2 className="w-4 h-4" /> Edit
                             </button>
                         </>
                     )}
                 </div>
             </div>
 
-            {/* Tabs */}
-            <div className="mb-4">
-                <div className="flex gap-1 border-b border-gray-200">
+            {/* Error Display */}
+            {error && (
+                <div className="bg-red-50 border border-red-100 rounded-lg p-3 flex items-start gap-3 text-danger">
+                    <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                    <p className="text-sm font-medium">{error}</p>
+                </div>
+            )}
+
+            {/* Tabs & Content */}
+            <div className="glass-card overflow-hidden">
+                <div className="flex border-b border-border bg-gray-50/30 px-4 pt-1">
                     <button
                         onClick={() => setActiveTab('basic')}
-                        className={`px-3 py-1.5 text-xs font-semibold rounded-t border-t border-l border-r transition-colors ${activeTab === 'basic' ? 'bg-white border-gray-200 border-b-white text-blue-600 relative top-[1px]' : 'bg-gray-50 border-transparent text-gray-500 hover:text-gray-700'
+                        className={`px-4 py-3 text-[13px] font-semibold transition-all relative top-[1px] border-b-2 mr-2 ${activeTab === 'basic'
+                            ? "border-primary text-primary bg-transparent"
+                            : "border-transparent text-text-secondary hover:text-text-primary"
                             }`}
                     >
                         Basic Info
                     </button>
                     <button
                         onClick={() => setActiveTab('transport')}
-                        className={`px-3 py-1.5 text-xs font-semibold rounded-t border-t border-l border-r transition-colors ${activeTab === 'transport' ? 'bg-white border-gray-200 border-b-white text-blue-600 relative top-[1px]' : 'bg-gray-50 border-transparent text-gray-500 hover:text-gray-700'
+                        className={`px-4 py-3 text-[13px] font-semibold transition-all relative top-[1px] border-b-2 ${activeTab === 'transport'
+                            ? "border-primary text-primary bg-transparent"
+                            : "border-transparent text-text-secondary hover:text-text-primary"
                             }`}
                     >
                         Transport Details
                     </button>
                 </div>
 
-                <div className="bg-white p-4 rounded-b border border-gray-200 border-t-0 -mt-[1px]">
+                <div className="p-6">
                     {activeTab === 'basic' && (
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-3 gap-6">
-                                <Field
-                                    label="DC Number"
-                                    value={formData.dc_number}
-                                    onChange={(v: string) => setFormData({ ...formData, dc_number: v })}
-                                    disabled={true}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <Field
+                                label="DC Number"
+                                value={formData.dc_number}
+                                onChange={(v: string) => setFormData({ ...formData, dc_number: v })}
+                                disabled={true}
+                            />
+                            <Field
+                                label="DC Date"
+                                value={formData.dc_date}
+                                onChange={(v: string) => setFormData({ ...formData, dc_date: v })}
+                            />
+                            <Field
+                                label="Supplier Phone No"
+                                value={formData.supplier_phone}
+                                onChange={(v: string) => setFormData({ ...formData, supplier_phone: v })}
+                            />
+                            <Field
+                                label="Supplier GSTIN"
+                                value={formData.supplier_gstin}
+                                onChange={(v: string) => setFormData({ ...formData, supplier_gstin: v })}
+                            />
+                            <Field
+                                label="Consignee Name"
+                                value={formData.consignee_name}
+                                onChange={(v: string) => setFormData({ ...formData, consignee_name: v })}
+                            />
+                            <div className="col-span-1">
+                                <label className="block text-[11px] uppercase tracking-wider font-semibold text-text-secondary mb-1">Consignee Address</label>
+                                <textarea
+                                    value={formData.consignee_address}
+                                    onChange={(e) => setFormData({ ...formData, consignee_address: e.target.value })}
+                                    disabled={!editMode}
+                                    rows={2}
+                                    className={`w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary bg-white ${!editMode ? 'bg-gray-50 text-text-secondary' : ''}`}
                                 />
-                                <Field
-                                    label="DC Date"
-                                    value={formData.dc_date}
-                                    onChange={(v: string) => setFormData({ ...formData, dc_date: v })}
-                                />
-                                {/* Assuming Vehicle Number exists or can be added, otherwise leave empty slot or put other fields */}
-                                {/* Since user didn't show Vehicle Number in screenshot for detail, but likely wants 3 cols. 
-                                    I will put Supplier Phone here to maximize density */}
-                                <Field
-                                    label="Supplier Phone No"
-                                    value={formData.supplier_phone}
-                                    onChange={(v: string) => setFormData({ ...formData, supplier_phone: v })}
-                                />
-
-                                {/* Row 2 */}
-                                <Field
-                                    label="Supplier GSTIN"
-                                    value={formData.supplier_gstin}
-                                    onChange={(v: string) => setFormData({ ...formData, supplier_gstin: v })}
-                                />
-                                <Field
-                                    label="Consignee Name"
-                                    value={formData.consignee_name}
-                                    onChange={(v: string) => setFormData({ ...formData, consignee_name: v })}
-                                />
-                                <div className="col-span-1">
-                                    {/* Empty or Address? Address uses textarea usually, but here Field is input. */}
-                                    <div className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">Consignee Address</div>
-                                    <textarea
-                                        value={formData.consignee_address}
-                                        onChange={(e) => setFormData({ ...formData, consignee_address: e.target.value })}
-                                        disabled={!editMode}
-                                        rows={2}
-                                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 text-gray-900 font-medium disabled:bg-gray-100"
-                                    />
-                                </div>
                             </div>
                         </div>
                     )}
 
                     {activeTab === 'transport' && (
-                        <div className="grid grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <Field
                                 label="Mode of Transport"
                                 value={formData.mode_of_transport}
@@ -406,123 +398,135 @@ export default function DCDetailPage() {
                 </div>
             </div>
 
-            <div className="bg-white rounded border border-gray-200 mb-4 font-mono text-xs">
-                <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-gray-50">
-                    <h3 className="font-semibold text-gray-900">Items Dispatched</h3>
+            {/* Items Table */}
+            <div className="glass-card overflow-hidden">
+                <div className="flex items-center justify-between p-4 border-b border-border bg-gray-50/30">
+                    <h3 className="text-[14px] font-semibold text-text-primary flex items-center gap-2">
+                        <Truck className="w-4 h-4 text-primary" />
+                        Items Dispatched
+                    </h3>
                     {editMode && (
-                        <button onClick={handleAddItem} className="text-blue-600 hover:text-blue-700 text-[10px] font-medium flex items-center">
-                            <Plus className="w-3 h-3 mr-1" /> Add Row
+                        <button onClick={handleAddItem} className="text-primary hover:text-blue-700 text-xs font-medium flex items-center gap-1 transition-colors">
+                            <Plus className="w-3.5 h-3.5" /> Add Row
                         </button>
                     )}
                 </div>
-                <table className="w-full">
-                    <thead>
-                        <tr className="bg-gray-50 text-left">
-                            <th className="px-3 py-1 font-semibold text-gray-600 w-16 text-[10px] uppercase">Lot</th>
-                            <th className="px-3 py-1 font-semibold text-gray-600 text-[10px] uppercase">Description</th>
-                            <th className="px-3 py-1 font-semibold text-gray-600 w-24 text-[10px] uppercase">Ordered</th>
-                            <th className="px-3 py-1 font-semibold text-gray-600 w-24 text-[10px] uppercase">Rem.</th>
-                            <th className="px-3 py-1 font-semibold text-gray-600 w-32 text-[10px] uppercase">Dispatch</th>
-                            {editMode && <th className="px-3 py-1 w-16 text-[10px] uppercase"></th>}
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                        {items.length > 0 ? items.map((item, idx) => (
-                            <tr key={idx} className="group hover:bg-gray-50">
-                                <td className="p-2">
-                                    {editMode ? (
-                                        <input
-                                            type="text"
-                                            value={item.lot_no}
-                                            onChange={(e) => handleItemChange(item.id, 'lot_no', e.target.value)}
-                                            className="w-full border border-gray-300 rounded px-1 py-0.5 focus:border-blue-500 text-gray-900 text-xs"
-                                            readOnly
-                                        />
-                                    ) : (
-                                        <div className="px-1 py-0.5">{item.lot_no}</div>
-                                    )}
-                                </td>
-                                <td className="p-2">
-                                    {editMode ? (
-                                        <input
-                                            type="text"
-                                            value={item.description}
-                                            onChange={(e) => handleItemChange(item.id, 'description', e.target.value)}
-                                            className="w-full border border-gray-300 rounded px-1 py-0.5 focus:border-blue-500 text-gray-900 text-xs"
-                                            readOnly
-                                        />
-                                    ) : (
-                                        <div className="px-1 py-0.5">{item.description}</div>
-                                    )}
-                                </td>
-                                <td className="p-2">
-                                    <div className="px-2 py-1 text-gray-600">{item.ordered_qty}</div>
-                                </td>
-                                <td className="p-2">
-                                    <div className="px-2 py-1 font-semibold text-gray-800">{item.remaining_post_dc}</div>
-                                </td>
-                                <td className="p-2">
-                                    {editMode ? (
-                                        <input
-                                            type="number"
-                                            value={item.dispatch_quantity}
-                                            onChange={(e) => handleItemChange(item.id, 'dispatch_quantity', parseFloat(e.target.value))}
-                                            className="w-full border border-gray-400 rounded px-1 py-0.5 font-bold focus:border-blue-600 text-gray-900 text-xs"
-                                            placeholder="0"
-                                        />
-                                    ) : (
-                                        <div className="px-2 py-1 font-medium">{item.dispatch_quantity}</div>
-                                    )}
-                                </td>
-                                {editMode && (
-                                    <td className="p-2 text-center">
-                                        <button
-                                            onClick={() => handleDeleteItem(item.id)}
-                                            className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-gray-50/50 text-text-secondary border-b border-border text-[11px] uppercase tracking-wider font-semibold">
+                                <th className="px-4 py-3 w-16">Lot</th>
+                                <th className="px-4 py-3">Description</th>
+                                <th className="px-4 py-3 w-24 text-right">Ordered</th>
+                                <th className="px-4 py-3 w-24 text-right">Rem.</th>
+                                <th className="px-4 py-3 w-32 text-right">Dispatch</th>
+                                {editMode && <th className="px-4 py-3 w-16 text-center"></th>}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/50 bg-white">
+                            {items.length > 0 ? items.map((item, idx) => (
+                                <tr key={idx} className="group hover:bg-gray-50/50 transition-colors">
+                                    <td className="px-4 py-2">
+                                        {editMode ? (
+                                            <input
+                                                type="text"
+                                                value={item.lot_no}
+                                                onChange={(e) => handleItemChange(item.id, 'lot_no', e.target.value)}
+                                                className="w-full border border-border rounded px-2 py-1 focus:ring-1 focus:ring-primary text-sm bg-white"
+                                                readOnly
+                                            />
+                                        ) : (
+                                            <span className="text-sm font-medium text-text-primary">{item.lot_no}</span>
+                                        )}
                                     </td>
-                                )}
-                            </tr>
-                        )) : (
-                            <tr>
-                                <td colSpan={editMode ? 6 : 5} className="text-center py-6 text-gray-500 italic">
-                                    No items found.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
+                                    <td className="px-4 py-2">
+                                        {editMode ? (
+                                            <input
+                                                type="text"
+                                                value={item.description}
+                                                onChange={(e) => handleItemChange(item.id, 'description', e.target.value)}
+                                                className="w-full border border-border rounded px-2 py-1 focus:ring-1 focus:ring-primary text-sm bg-white"
+                                                readOnly
+                                            />
+                                        ) : (
+                                            <span className="text-sm text-text-primary line-clamp-1" title={item.description}>{item.description}</span>
+                                        )}
+                                    </td>
+                                    <td className="px-4 py-2 text-right text-[13px] text-text-secondary font-medium">
+                                        {item.ordered_qty}
+                                    </td>
+                                    <td className="px-4 py-2 text-right text-[13px] text-text-primary font-bold">
+                                        {item.remaining_post_dc}
+                                    </td>
+                                    <td className="px-4 py-2">
+                                        {editMode ? (
+                                            <input
+                                                type="number"
+                                                value={item.dispatch_quantity}
+                                                onChange={(e) => handleItemChange(item.id, 'dispatch_quantity', parseFloat(e.target.value))}
+                                                className="w-full border border-primary/30 rounded px-2 py-1 font-bold text-primary text-sm text-right bg-white focus:ring-1 focus:ring-primary"
+                                                placeholder="0"
+                                            />
+                                        ) : (
+                                            <div className="text-right font-bold text-primary text-[13px]">{item.dispatch_quantity}</div>
+                                        )}
+                                    </td>
+                                    {editMode && (
+                                        <td className="px-4 py-2 text-center">
+                                            <button
+                                                onClick={() => handleDeleteItem(item.id)}
+                                                className="text-text-secondary hover:text-danger p-1.5 rounded transition-colors hover:bg-red-50"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </td>
+                                    )}
+                                </tr>
+                            )) : (
+                                <tr>
+                                    <td colSpan={editMode ? 6 : 5} className="text-center py-8 text-text-secondary text-sm italic">
+                                        No items found.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {/* PO Notes Section */}
-            <div className="bg-white rounded border border-gray-200 p-4">
-                <div className="mb-3">
-                    <h3 className="font-semibold text-gray-900 text-sm">PO Notes</h3>
-                    <p className="text-[10px] text-gray-500">Select standard notes or add custom ones.</p>
+            <div className="glass-card p-4">
+                <div className="mb-4">
+                    <h3 className="text-[14px] font-semibold text-text-primary flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-primary" />
+                        PO Notes
+                    </h3>
+                    <p className="text-[12px] text-text-secondary mt-0.5">Standard terms and conditions for this delivery.</p>
                 </div>
 
                 {editMode && (
-                    <div className="flex gap-3 mb-6">
-                        <div className="flex-1">
+                    <div className="flex gap-2 mb-4">
+                        <div className="flex-1 relative">
                             <select
                                 value={selectedTemplate}
                                 onChange={(e) => setSelectedTemplate(e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                                className="w-full appearance-none px-3 py-2 border border-border rounded-lg text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer text-text-primary"
                             >
                                 <option value="">-- Select Note Template --</option>
                                 {PO_NOTE_TEMPLATES.map(t => (
                                     <option key={t.id} value={t.id}>{t.title}</option>
                                 ))}
                             </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-text-secondary">
+                                <Plus className="h-4 w-4 rotate-45" />
+                            </div>
                         </div>
                         <button
                             onClick={handleAddNote}
                             disabled={!selectedTemplate}
-                            className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 text-sm disabled:opacity-50 disabled:bg-gray-300"
+                            className="px-4 py-2 bg-text-primary text-white rounded-lg hover:bg-black text-sm font-medium disabled:opacity-50 disabled:bg-gray-300 transition-colors"
                         >
-                            Add Selected Note
+                            Add Note
                         </button>
                     </div>
                 )}
@@ -535,13 +539,12 @@ export default function DCDetailPage() {
                                 onChange={(e) => handleNoteChange(index, e.target.value)}
                                 rows={2}
                                 disabled={!editMode}
-                                style={{ color: '#111827' }}
-                                className="flex-1 border border-gray-300 rounded text-xs focus:ring-blue-500 focus:border-blue-500 p-2 disabled:bg-gray-50"
+                                className={`flex-1 border border-border rounded-lg text-sm text-text-primary py-2 px-3 focus:ring-1 focus:ring-primary focus:border-primary transition-all bg-white ${!editMode ? 'bg-gray-50 text-text-secondary border-transparent' : ''}`}
                             />
                             {editMode && (
                                 <button
                                     onClick={() => handleRemoveNote(index)}
-                                    className="mt-2 text-red-400 hover:text-red-600 p-1"
+                                    className="mt-2 text-text-secondary hover:text-danger p-1 transition-colors"
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </button>
@@ -549,7 +552,7 @@ export default function DCDetailPage() {
                         </div>
                     ))}
                     {notes.length === 0 && (
-                        <div className="text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-300 text-gray-400 text-sm">
+                        <div className="text-center py-6 bg-gray-50/50 rounded-lg border border-dashed border-border text-text-secondary text-sm">
                             No notes added yet.
                         </div>
                     )}

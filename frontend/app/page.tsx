@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, DashboardSummary, ActivityItem } from "@/lib/api";
-import { FileText, Truck, Receipt, TrendingUp, Plus, MoveUpRight, Clock } from "lucide-react";
+import { FileText, Truck, Receipt, TrendingUp, Plus, MoveUpRight, Clock, ChevronRight } from "lucide-react";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -35,12 +35,12 @@ export default function DashboardPage() {
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'paid': return 'bg-green-100 text-green-700';
-      case 'pending': return 'bg-yellow-100 text-yellow-700';
-      case 'dispatched': return 'bg-blue-100 text-blue-700';
-      case 'active': return 'bg-green-100 text-green-700';
-      case 'new': return 'bg-blue-50 text-blue-700';
-      default: return 'bg-gray-100 text-gray-700';
+      case 'paid': return 'bg-success/10 text-success border border-success/20';
+      case 'pending': return 'bg-warning/10 text-warning border border-warning/20';
+      case 'dispatched': return 'bg-primary/10 text-primary border border-primary/20';
+      case 'active': return 'bg-success/10 text-success border border-success/20';
+      case 'new': return 'bg-primary/10 text-primary border border-primary/20';
+      default: return 'bg-gray-100 text-text-secondary border border-gray-200';
     }
   };
 
@@ -56,7 +56,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-gray-500">Loading dashboard...</div>
+        <div className="text-text-secondary animate-pulse">Loading dashboard...</div>
       </div>
     );
   }
@@ -64,8 +64,8 @@ export default function DashboardPage() {
   if (error) {
     return (
       <div className="p-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-sm text-red-800 font-medium">{error}</p>
+        <div className="bg-danger/10 border border-danger/20 rounded-lg p-4">
+          <p className="text-sm text-danger font-medium">{error}</p>
         </div>
       </div>
     );
@@ -76,125 +76,133 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
-      <div className="mb-6 flex justify-between items-end">
+    <div className="space-y-8">
+      <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">Welcome back, Admin. Here is your daily overview.</p>
+          <h1 className="text-[20px] font-semibold text-text-primary">Dashboard</h1>
+          <p className="text-[13px] text-text-secondary mt-1">Welcome back, Admin. Here is your daily overview.</p>
         </div>
-        <div className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 shadow-sm">
+        <div className="px-4 py-2 glass-card text-sm text-text-secondary font-medium">
           Today: {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {/* Total Sales */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-start justify-between">
+        <div className="glass-card p-5 flex flex-col justify-between h-[140px]">
+          <div className="flex justify-between items-start">
+            <p className="text-[12px] font-semibold text-text-secondary uppercase tracking-wider">Total Sales (Month)</p>
+            <div className="p-2 bg-blue-50 rounded-lg text-primary">
+              <FileText className="w-5 h-5" />
+            </div>
+          </div>
           <div>
-            <p className="text-sm font-medium text-gray-500">Total Sales (Month)</p>
-            <h3 className="text-2xl font-bold text-gray-900 mt-2">
+            <h3 className="text-[24px] font-bold text-text-primary">
               ₹{summary.total_sales_month.toLocaleString('en-IN')}
             </h3>
-            <div className="flex items-center mt-2 text-green-600 text-sm font-medium">
+            <div className="flex items-center mt-1 text-success text-[12px] font-medium">
               <MoveUpRight className="w-3 h-3 mr-1" />
               <span>+{summary.sales_growth}% vs last month</span>
             </div>
           </div>
-          <div className="p-3 bg-blue-50 rounded-lg">
-            <FileText className="w-6 h-6 text-blue-600" />
-          </div>
         </div>
 
         {/* Pending POs */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-start justify-between">
+        <div className="glass-card p-5 flex flex-col justify-between h-[140px]">
+          <div className="flex justify-between items-start">
+            <p className="text-[12px] font-semibold text-text-secondary uppercase tracking-wider">Pending POs</p>
+            <div className="p-2 bg-orange-50 rounded-lg text-warning">
+              <Clock className="w-5 h-5" />
+            </div>
+          </div>
           <div>
-            <p className="text-sm font-medium text-gray-500">Pending POs</p>
-            <h3 className="text-2xl font-bold text-gray-900 mt-2">
-              {summary.pending_pos} Orders
+            <h3 className="text-[24px] font-bold text-text-primary">
+              {summary.pending_pos} <span className="text-sm font-normal text-text-secondary">Orders</span>
             </h3>
-            <div className="flex items-center mt-2 text-orange-600 text-sm font-medium">
+            <div className="flex items-center mt-1 text-warning text-[12px] font-medium">
               <Plus className="w-3 h-3 mr-1" />
               <span>{summary.new_pos_today} new today</span>
             </div>
           </div>
-          <div className="p-3 bg-orange-50 rounded-lg">
-            <Clock className="w-6 h-6 text-orange-600" />
-          </div>
         </div>
 
         {/* Active Challans */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-start justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-500">Active Challans</p>
-            <h3 className="text-2xl font-bold text-gray-900 mt-2">
-              {summary.active_challans} Active
-            </h3>
-            <div className="flex items-center mt-2 text-gray-500 text-sm font-medium">
-              <span>{summary.active_challans_growth}</span>
+        <div className="glass-card p-5 flex flex-col justify-between h-[140px]">
+          <div className="flex justify-between items-start">
+            <p className="text-[12px] font-semibold text-text-secondary uppercase tracking-wider">Active Challans</p>
+            <div className="p-2 bg-purple-50 rounded-lg text-purple-600">
+              <Truck className="w-5 h-5" />
             </div>
           </div>
-          <div className="p-3 bg-blue-50 rounded-lg">
-            <Truck className="w-6 h-6 text-blue-600" />
+          <div>
+            <h3 className="text-[24px] font-bold text-text-primary">
+              {summary.active_challans} <span className="text-sm font-normal text-text-secondary">Active</span>
+            </h3>
+            <div className="flex items-center mt-1 text-text-secondary text-[12px] font-medium">
+              <span>{summary.active_challans_growth} from last week</span>
+            </div>
           </div>
         </div>
 
         {/* Total PO Value */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-start justify-between">
+        <div className="glass-card p-5 flex flex-col justify-between h-[140px]">
+          <div className="flex justify-between items-start">
+            <p className="text-[12px] font-semibold text-text-secondary uppercase tracking-wider">Total PO Value</p>
+            <div className="p-2 bg-green-50 rounded-lg text-success">
+              <Receipt className="w-5 h-5" />
+            </div>
+          </div>
           <div>
-            <p className="text-sm font-medium text-gray-500">Total PO Value</p>
-            <h3 className="text-2xl font-bold text-gray-900 mt-2">
+            <h3 className="text-[24px] font-bold text-text-primary">
               ₹{summary.total_po_value.toLocaleString('en-IN')}
             </h3>
-            <div className="flex items-center mt-2 text-green-600 text-sm font-medium">
+            <div className="flex items-center mt-1 text-success text-[12px] font-medium">
               <TrendingUp className="w-3 h-3 mr-1" />
               <span>+{summary.po_value_growth}% growth</span>
             </div>
           </div>
-          <div className="p-3 bg-purple-50 rounded-lg">
-            <Receipt className="w-6 h-6 text-purple-600" />
-          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Transactions Table */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-gray-900">Recent Transactions</h2>
+        <div className="lg:col-span-2 glass-card overflow-hidden">
+          <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+            <h2 className="text-[16px] font-semibold text-text-primary">Recent Transactions</h2>
             <button
               onClick={() => router.push("/reports")}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              className="text-[13px] text-primary hover:text-blue-700 font-medium flex items-center gap-1 transition-colors"
             >
-              View All
+              View All <ChevronRight className="w-3 h-3" />
             </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full whitespace-nowrap">
-              <thead className="bg-gray-50 border-b border-gray-100">
+              <thead className="bg-gray-50/50 border-b border-border">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Party Name</th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-[11px] font-bold text-text-secondary uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-3 text-left text-[11px] font-bold text-text-secondary uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-[11px] font-bold text-text-secondary uppercase tracking-wider">Party Name</th>
+                  <th className="px-6 py-3 text-right text-[11px] font-bold text-text-secondary uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-3 text-right text-[11px] font-bold text-text-secondary uppercase tracking-wider">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border/50">
                 {activity.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-sm text-gray-500 font-medium">{item.date}</td>
+                  <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4 text-[13px] text-text-secondary font-medium">{item.date}</td>
                     <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded text-xs font-bold ${getTypeStyle(item.type)}`}>
+                      <span className={`px-2 py-1 rounded text-[11px] font-bold ${getTypeStyle(item.type)}`}>
                         {item.type}-{item.number}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.party}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500 text-right font-medium">
+                    <td className="px-6 py-4 text-[13px] font-medium text-text-primary">{item.party}</td>
+                    <td className="px-6 py-4 text-[13px] text-text-secondary text-right font-medium">
                       {item.amount ? `₹${item.amount.toLocaleString()}` : '-'}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(item.status)}`}>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${getStatusColor(item.status)}`}>
                         {item.status}
                       </span>
                     </td>
@@ -206,46 +214,46 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick Actions */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h2>
-            <div className="space-y-4">
+        <div className="space-y-4">
+          <div className="glass-card p-6">
+            <h2 className="text-[16px] font-semibold text-text-primary mb-4">Quick Actions</h2>
+            <div className="space-y-3">
               <button
                 onClick={() => router.push("/po/create")}
-                className="w-full flex items-center gap-4 p-4 border border-gray-100 bg-white hover:bg-gray-50 rounded-xl transition-all shadow-sm hover:shadow-md group"
+                className="w-full flex items-center gap-4 p-4 border border-border bg-white hover:bg-gray-50 rounded-xl transition-all shadow-sm hover:shadow-md group text-left"
               >
-                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                <div className="w-10 h-10 bg-blue-50 text-primary rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
                   <FileText className="w-5 h-5" />
                 </div>
-                <div className="text-left">
-                  <div className="font-bold text-gray-900">New Purchase Order</div>
-                  <div className="text-xs text-gray-500">Draft a new PO for suppliers</div>
+                <div>
+                  <div className="font-semibold text-text-primary text-[14px]">New Purchase Order</div>
+                  <div className="text-[12px] text-text-secondary">Draft a new PO for suppliers</div>
                 </div>
               </button>
 
               <button
                 onClick={() => router.push("/dc/create")}
-                className="w-full flex items-center gap-4 p-4 border border-gray-100 bg-white hover:bg-gray-50 rounded-xl transition-all shadow-sm hover:shadow-md group"
+                className="w-full flex items-center gap-4 p-4 border border-border bg-white hover:bg-gray-50 rounded-xl transition-all shadow-sm hover:shadow-md group text-left"
               >
-                <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Truck className="w-5 h-5" />
                 </div>
-                <div className="text-left">
-                  <div className="font-bold text-gray-900">New Delivery Challan</div>
-                  <div className="text-xs text-gray-500">Generate DC for dispatch</div>
+                <div>
+                  <div className="font-semibold text-text-primary text-[14px]">New Delivery Challan</div>
+                  <div className="text-[12px] text-text-secondary">Generate DC for dispatch</div>
                 </div>
               </button>
 
               <button
                 onClick={() => router.push("/invoice/create")}
-                className="w-full flex items-center gap-4 p-4 border border-gray-100 bg-white hover:bg-gray-50 rounded-xl transition-all shadow-sm hover:shadow-md group"
+                className="w-full flex items-center gap-4 p-4 border border-border bg-white hover:bg-gray-50 rounded-xl transition-all shadow-sm hover:shadow-md group text-left"
               >
-                <div className="w-10 h-10 bg-green-100 text-green-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                <div className="w-10 h-10 bg-green-50 text-success rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Receipt className="w-5 h-5" />
                 </div>
-                <div className="text-left">
-                  <div className="font-bold text-gray-900">Create Invoice</div>
-                  <div className="text-xs text-gray-500">Create GST invoice for sales</div>
+                <div>
+                  <div className="font-semibold text-text-primary text-[14px]">Create Invoice</div>
+                  <div className="text-[12px] text-text-secondary">Create GST invoice for sales</div>
                 </div>
               </button>
             </div>

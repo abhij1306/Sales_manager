@@ -32,6 +32,10 @@ export interface POHeader {
     po_date: string | null;
     supplier_name: string | null;
     supplier_code: string | null;
+    supplier_phone?: string | null;
+    supplier_gstin?: string | null;
+    consignee_name?: string | null;
+    consignee_address?: string | null;
     po_value: number | null;
     // ... add other fields as needed
 }
