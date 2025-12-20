@@ -1,23 +1,37 @@
 """
-FastAPI Main Application
+FastAPI Main Application with Structured Logging and Observability
 """
+# Load .env file using custom loader (no external deps)
+import app.core.config
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import dashboard, po, dc, invoice, reports, search, alerts, reconciliation, po_notes
+from app.routers import dashboard, po, dc, invoice, reports, search, alerts, reconciliation, po_notes, health, voice
+from app.middleware import RequestLoggingMiddleware
+from app.core.logging_config import setup_logging
 from app.db import validate_database_path
 import logging
+import os
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Setup structured logging
+log_level = os.getenv("LOG_LEVEL", "INFO")
+use_json_logs = os.getenv("JSON_LOGS", "false").lower() == "true"
+setup_logging(log_level=log_level, use_json=use_json_logs)
+
 logger = logging.getLogger(__name__)
+
+# Log API key status
+groq_key = os.getenv("GROQ_API_KEY")
+openrouter_key = os.getenv("OPENROUTER_API_KEY")
+logger.info(f"GROQ_API_KEY: {'✅ Set' if groq_key else '❌ Not set'}")
+logger.info(f"OPENROUTER_API_KEY: {'✅ Set' if openrouter_key else '❌ Not set'}")
 
 app = FastAPI(
     title="Sales Manager API",
-    description="Local-first PO-DC-Invoice Management System",
-    version="2.0.0"
+    description="Local-first PO-DC-Invoice Management System with AI/Voice capabilities",
+    version="2.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc"
 )
 
 # CORS for localhost frontend
@@ -29,7 +43,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Request logging middleware
+app.add_middleware(RequestLoggingMiddleware)
+
 # Include routers
+app.include_router(health.router, prefix="/api", tags=["Health"])
+app.include_router(voice.router, prefix="/api/voice", tags=["Voice Agent"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(po.router, prefix="/api/po", tags=["Purchase Orders"])
 app.include_router(dc.router, prefix="/api/dc", tags=["Delivery Challans"])
@@ -39,6 +58,7 @@ app.include_router(search.router, prefix="/api/search", tags=["Search"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
 app.include_router(reconciliation.router, prefix="/api/reconciliation", tags=["Reconciliation"])
 app.include_router(po_notes.router, prefix="/api/po-notes", tags=["PO Notes"])
+
 
 
 @app.on_event("startup")
@@ -52,12 +72,15 @@ async def startup_event():
         validate_database_path()
         logger.info("✓ Database connection validated")
     except Exception as e:
-        logger.error(f"✗ Database validation failed: {e}")
+        logger.error(f"✗ Database validation failed: {e}", exc_info=True)
         raise
     
+    logger.info("✓ Structured logging configured")
+    logger.info("✓ Request logging middleware enabled")
     logger.info("✓ CORS middleware configured")
     logger.info("✓ Routers registered:")
-    logger.info("  - Dashboard (/api)")
+    logger.info("  - Health (/api/health, /api/health/ready, /api/health/metrics)")
+    logger.info("  - Dashboard (/api/dashboard)")
     logger.info("  - Purchase Orders (/api/po)")
     logger.info("  - Delivery Challans (/api/dc)")
     logger.info("  - Invoices (/api/invoice)")
@@ -79,9 +102,10 @@ async def shutdown_event():
 
 @app.get("/")
 def root():
-    return {"message": "Sales Manager API v2.0", "status": "running"}
-
-@app.get("/health")
-def health():
-    return {"status": "healthy"}
-
+    """Root endpoint"""
+    return {
+        "message": "Sales Manager API v2.0",
+        "status": "running",
+        "docs": "/api/docs",
+        "health": "/api/health"
+    }

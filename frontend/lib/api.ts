@@ -258,7 +258,13 @@ async function apiFetch<T>(
                             .map((err: any) => `${err.loc.join('.')} - ${err.msg}`)
                             .join('\n');
                     } else if (typeof errorData.detail === 'object') {
-                        errorMessage = JSON.stringify(errorData.detail);
+                        // Extract message from structured error if available
+                        const detailObj = errorData.detail as any;
+                        if (detailObj && detailObj.message) {
+                            errorMessage = detailObj.message;
+                        } else {
+                            errorMessage = JSON.stringify(errorData.detail);
+                        }
                     } else {
                         errorMessage = String(errorData.detail);
                     }

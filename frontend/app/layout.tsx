@@ -1,15 +1,12 @@
-import type { Metadata } from "next";
+'use client';
+
 import { Inter } from "next/font/google";
 import "./globals.css";
 import NavRail from "@/components/NavRail";
 import GlobalSearch from "@/components/GlobalSearch";
+import { VoiceAgent } from "@/components/VoiceAgent";
 
 const inter = Inter({ subsets: ["latin"] });
-
-export const metadata: Metadata = {
-  title: "Sales Manager",
-  description: "PO-DC-Invoice Management System",
-};
 
 export default function RootLayout({
   children,
@@ -35,6 +32,14 @@ export default function RootLayout({
             </main>
           </div>
         </div>
+
+        {/* Voice Agent - Floating button in bottom-right */}
+        <VoiceAgent
+          onAction={(action) => {
+            console.log('Voice action received:', action);
+            // Handle voice actions here
+          }}
+        />
       </body>
     </html>
   );
