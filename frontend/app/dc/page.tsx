@@ -2,281 +2,274 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Filter, Eye, Truck, CheckCircle, Clock, Calendar as CalendarIcon, FileText } from "lucide-react";
+import Link from "next/link";
 import { api, DCListItem, DCStats } from "@/lib/api";
+import {
+    Truck, Plus, Search, Filter, Calendar, FileCheck, ArrowRight,
+    Loader2, Receipt, AlertCircle
+} from "lucide-react";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { GlassCard } from "@/components/ui/glass/GlassCard";
+import { GlassButton } from "@/components/ui/glass/GlassButton";
 import Pagination from "@/components/Pagination";
 
-export default function DCListPage() {
-  const router = useRouter();
-  const [dcs, setDCs] = useState<DCListItem[]>([]);
-  const [stats, setStats] = useState<DCStats | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function DCPage() {
+    const router = useRouter();
+    const [dcs, setDCs] = useState<DCListItem[]>([]);
+    const [stats, setStats] = useState<DCStats | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [statusFilter, setStatusFilter] = useState("All Statuses");
 
-  // Filters
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All Status");
-  const [dateFilter, setDateFilter] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 10;
 
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [dcsData, statsData] = await Promise.all([
+                    api.listDCs(),
+                    api.getDCStats()
+                ]);
+                setDCs(dcsData);
+                setStats(statsData);
+            } catch (err) {
+                console.error("Failed to load DC data:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, []);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [dcData, statsData] = await Promise.all([
-          api.listDCs(),
-          api.getDCStats()
-        ]);
-        setDCs(dcData);
-        setStats(statsData);
-        setLoading(false);
-      } catch (err) {
-        console.error("Failed to load DC data:", err);
-        setLoading(false);
-      }
-    };
+    const filteredDCs = dcs.filter(dc => {
+        const matchesSearch =
+            dc.dc_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (dc.consignee_name && dc.consignee_name.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    loadData();
-  }, []);
+        // Mock status logic if API doesn't return status yet
+        const status = dc.status || 'Pending';
+        const matchesStatus = statusFilter === 'All Statuses' || status === statusFilter;
 
-  const filteredDCs = dcs.filter(dc => {
-    const matchesSearch =
-      dc.dc_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (dc.po_number?.toString() || "").includes(searchQuery) ||
-      (dc.consignee_name && dc.consignee_name.toLowerCase().includes(searchQuery.toLowerCase()));
+        return matchesSearch && matchesStatus;
+    });
 
-    const matchesStatus = statusFilter === "All Status" || dc.status === statusFilter;
-
-    // Simple date match (exact string match for now, can be enhanced)
-    const matchesDate = !dateFilter || dc.dc_date === dateFilter;
-
-    return matchesSearch && matchesStatus && matchesDate;
-  });
-
-  // Pagination Logic
-  const paginatedDCs = filteredDCs.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Delivered': return 'bg-success/10 text-success border border-success/20';
-      case 'Pending': return 'bg-warning/10 text-warning border border-warning/20';
-      case 'Draft': return 'bg-text-secondary/10 text-text-secondary border border-text-secondary/20';
-      default: return 'bg-blue-50 text-blue-800 border-indigo-200';
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-primary font-medium">Loading Delivery Challans...</div>
-      </div>
+    const paginatedDCs = filteredDCs.slice(
+        (currentPage - 1) * pageSize,
+        currentPage * pageSize
     );
-  }
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[20px] font-semibold text-text-primary tracking-tight">Delivery Challans</h1>
-          <p className="text-[13px] text-text-secondary mt-1">Manage your outbound delivery notes and status.</p>
-        </div>
-        <button
-          onClick={() => router.push("/dc/create")}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm text-sm font-medium"
-        >
-          <Plus className="w-4 h-4" />
-          Create New Challan
-        </button>
-      </div>
+    if (loading) {
+        return (
+            <DashboardLayout>
+                <div className="flex h-[80vh] items-center justify-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                </div>
+            </DashboardLayout>
+        );
+    }
 
-      {/* KPI Cards */}
-      {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Total Challans */}
-          <div className="glass-card p-6 flex items-start justify-between">
-            <div>
-              <p className="text-[12px] font-semibold text-text-secondary uppercase tracking-wider">Total Challans</p>
-              <h3 className="text-[24px] font-bold text-text-primary mt-2">
-                {stats.total_challans}
-              </h3>
-              <div className="flex items-center mt-2 text-success text-[12px] font-medium">
-                {/* Placeholder change */}
-                <span>+5% from last month</span>
-              </div>
-            </div>
-            <div className="p-3 bg-blue-50 rounded-lg text-primary">
-              <Truck className="w-6 h-6" />
-            </div>
-          </div>
-
-          {/* Pending Delivery */}
-          <div className="glass-card p-6 flex items-start justify-between">
-            <div>
-              <p className="text-[12px] font-semibold text-text-secondary uppercase tracking-wider">Pending Delivery</p>
-              <h3 className="text-[24px] font-bold text-text-primary mt-2">
-                {stats.pending_delivery}
-              </h3>
-              <div className="flex items-center mt-2 text-warning text-[12px] font-medium">
-                <span>Needs Attention</span>
-              </div>
-            </div>
-            <div className="p-3 bg-amber-50 rounded-lg text-amber-600">
-              <Clock className="w-6 h-6" />
-            </div>
-          </div>
-
-          {/* Completed */}
-          <div className="glass-card p-6 flex items-start justify-between">
-            <div>
-              <p className="text-[12px] font-semibold text-text-secondary uppercase tracking-wider">Completed</p>
-              <h3 className="text-[24px] font-bold text-text-primary mt-2">
-                {stats.completed_delivery}
-              </h3>
-              <div className="flex items-center mt-2 text-success text-[12px] font-medium">
-                <span>98% delivery rate</span>
-              </div>
-            </div>
-            <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
-              <CheckCircle className="w-6 h-6" />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main Content Card */}
-      <div className="glass-card overflow-hidden">
-        {/* Filters Bar */}
-        <div className="p-4 border-b border-border bg-gray-50/30 flex flex-col sm:flex-row gap-4 justify-between items-center">
-          <div className="relative w-full sm:w-96">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-            <input
-              type="text"
-              placeholder="Search DC, PO, or Customer..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-            />
-          </div>
-          <div className="flex gap-4 w-full sm:w-auto items-center">
-            <div className="relative">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="appearance-none pl-4 pr-10 py-2 bg-white border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer min-w-[140px]"
-              >
-                <option>All Status</option>
-                <option>Pending</option>
-                <option>Delivered</option>
-              </select>
-              <Filter className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
-            </div>
-            <div className="relative">
-              <input
-                type="date"
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="px-4 py-2 bg-white border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary h-[38px]"
-              />
-            </div>
-
-          </div>
-        </div>
-
-        {/* Data Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50/50 text-text-secondary border-b border-border text-[11px] uppercase tracking-wider font-semibold">
-                <th className="px-6 py-4">DC Number</th>
-                <th className="px-6 py-4">Date</th>
-                <th className="px-6 py-4">Customer / Recipient</th>
-                <th className="px-6 py-4">Associated PO</th>
-                <th className="px-6 py-4 text-center">Status</th>
-                <th className="px-6 py-4 text-right">Total Value</th>
-                <th className="px-6 py-4 text-center w-16"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/50 bg-white/50">
-              {filteredDCs.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center justify-center">
-                      <FileText className="w-12 h-12 text-border mb-3" />
-                      <h3 className="text-lg font-medium text-text-primary">No delivery challans found</h3>
-                      <p className="text-text-secondary text-sm mt-1 max-w-sm">
-                        Try adjusting your search or filters.
-                      </p>
+    return (
+        <DashboardLayout>
+            <div className="space-y-6">
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Delivery Challans</h1>
+                        <p className="text-sm text-gray-500 mt-1">
+                            Track shipments and generate invoices
+                        </p>
                     </div>
-                  </td>
-                </tr>
-              ) : (
-                paginatedDCs.map((dc) => (
-                  <tr key={dc.dc_number} className="hover:bg-gray-50/50 transition-colors group">
-                    <td className="px-6 py-3">
-                      <span className="text-[13px] font-semibold text-primary hover:text-blue-700 cursor-pointer" onClick={() => router.push(`/dc/${dc.dc_number}`)}>
-                        {dc.dc_number}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 text-[13px] text-text-secondary font-medium">{dc.dc_date}</td>
-                    <td className="px-6 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded bg-indigo-50 flex items-center justify-center text-[10px] text-indigo-700 font-bold uppercase border border-indigo-100">
-                          {dc.consignee_name ? dc.consignee_name.substring(0, 2) : 'CN'}
+                    <GlassButton
+                        variant="primary"
+                        onClick={() => router.push('/dc/create')}
+                        className="flex items-center gap-2"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Create New DC
+                    </GlassButton>
+                </div>
+
+                {/* KPI Cards */}
+                {stats && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <GlassCard className="p-6 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-4 opacity-10">
+                                <Truck className="w-16 h-16" />
+                            </div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Challans</p>
+                            <div className="flex items-end gap-2 mt-2">
+                                <h3 className="text-3xl font-bold text-gray-900">{stats.total_challans}</h3>
+                                <span className="mb-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                    Lifetime
+                                </span>
+                            </div>
+                        </GlassCard>
+
+                        <GlassCard className="p-6 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-4 opacity-10">
+                                <AlertCircle className="w-16 h-16" />
+                            </div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pending Delivery</p>
+                            <div className="flex items-end gap-2 mt-2">
+                                <h3 className="text-3xl font-bold text-gray-900">{stats.pending_delivery}</h3>
+                                <span className="mb-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">In Transit</span>
+                            </div>
+                        </GlassCard>
+
+                        <GlassCard className="p-6 relative overflow-hidden">
+                             <div className="absolute top-0 right-0 p-4 opacity-10">
+                                <FileCheck className="w-16 h-16" />
+                            </div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Completed</p>
+                            <div className="mt-2">
+                                <h3 className="text-3xl font-bold text-gray-900">{stats.completed_delivery}</h3>
+                                <div className="flex items-center mt-1 text-xs font-medium text-green-600">
+                                    <span>Successfully Delivered</span>
+                                </div>
+                            </div>
+                        </GlassCard>
+                    </div>
+                )}
+
+                {/* Main List */}
+                <GlassCard className="p-0 overflow-hidden min-h-[500px] flex flex-col">
+                    {/* Toolbar */}
+                    <div className="p-4 border-b border-gray-100 bg-white/40 flex flex-col sm:flex-row gap-4 justify-between items-center">
+                        <div className="relative w-full sm:w-96">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Search by DC number or consignee..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-white/60 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                            />
                         </div>
-                        <span className="text-[13px] text-text-primary font-medium">{dc.consignee_name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-3">
-                      <LinkWrapper href={`/po/${dc.po_number}`} className="px-2 py-1 bg-gray-50 text-text-secondary text-[11px] rounded border border-border font-medium hover:bg-gray-100 transition-colors inline-block">
-                        PO-{dc.po_number}
-                      </LinkWrapper>
-                    </td>
-                    <td className="px-6 py-3 text-center">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium ${getStatusColor(dc.status)}`}>
-                        {dc.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 text-right text-[13px] font-semibold text-text-primary">
-                      {dc.total_value > 0 ? `₹${dc.total_value.toLocaleString('en-IN')}` : '-'}
-                    </td>
-                    <td className="px-6 py-3 text-center">
-                      <button
-                        onClick={() => router.push(`/dc/${dc.dc_number}`)}
-                        className="text-text-secondary hover:text-primary transition-colors p-1 rounded hover:bg-gray-100"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                        <div className="relative w-full sm:w-auto">
+                            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                className="w-full sm:w-48 pl-10 pr-8 py-2 bg-white/60 border border-gray-200 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                            >
+                                <option>All Statuses</option>
+                                <option>Pending</option>
+                                <option>Delivered</option>
+                                <option>Invoiced</option>
+                            </select>
+                        </div>
+                    </div>
 
-        {/* Pagination Integrated */}
-        <Pagination
-          currentPage={currentPage}
-          totalItems={filteredDCs.length}
-          itemsPerPage={pageSize}
-          onPageChange={setCurrentPage}
-        />
-      </div>
-    </div>
-  );
-}
+                    {/* Table */}
+                    <div className="overflow-x-auto flex-1">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="border-b border-gray-100 bg-gray-50/30">
+                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-12">
+                                        <input type="checkbox" className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                    </th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">DC Number</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Linked PO</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Consignee</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Value</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Status</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {paginatedDCs.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={8} className="px-6 py-12 text-center">
+                                            <div className="flex flex-col items-center justify-center">
+                                                <Truck className="w-12 h-12 text-gray-200 mb-3" />
+                                                <h3 className="text-lg font-medium text-gray-900">No delivery challans found</h3>
+                                                <p className="text-gray-500 text-sm mt-1">
+                                                    Create a delivery challan from a PO to get started.
+                                                </p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    paginatedDCs.map((dc) => (
+                                        <tr key={dc.dc_number} className="hover:bg-blue-50/30 transition-colors group">
+                                            <td className="px-6 py-4">
+                                                <input type="checkbox" className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <Link
+                                                    href={`/dc/${dc.dc_number}`}
+                                                    className="font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                                                >
+                                                    {dc.dc_number}
+                                                </Link>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-600">
+                                                {dc.dc_date}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <Link
+                                                    href={`/po/${dc.po_number}`}
+                                                    className="text-sm font-medium text-gray-700 hover:text-blue-600"
+                                                >
+                                                    PO-{dc.po_number}
+                                                </Link>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-600 max-w-[200px] truncate">
+                                                {dc.consignee_name || '-'}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm font-medium text-gray-900 text-right">
+                                                ₹{dc.total_value?.toLocaleString('en-IN') || '0'}
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className={`
+                                                    inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border
+                                                    ${dc.status === 'Invoiced'
+                                                        ? 'bg-green-50 text-green-700 border-green-100'
+                                                        : 'bg-blue-50 text-blue-700 border-blue-100'
+                                                    }
+                                                `}>
+                                                    {dc.status || 'Pending'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <div className="flex items-center justify-center gap-2">
+                                                    {dc.status !== 'Invoiced' && (
+                                                        <Link
+                                                            href={`/invoice/create?dc=${dc.dc_number}`}
+                                                            className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                            title="Create Invoice"
+                                                        >
+                                                            <Receipt className="w-4 h-4" />
+                                                        </Link>
+                                                    )}
+                                                    <Link
+                                                        href={`/dc/${dc.dc_number}`}
+                                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                    >
+                                                        <ArrowRight className="w-4 h-4" />
+                                                    </Link>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
 
-// Simple internal helper to avoid Next.js link wrapping issues if needed, or just use button/span for now since filtering by PO usually goes to PO list
-function LinkWrapper({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) {
-  const router = useRouter();
-  return (
-    <span onClick={() => router.push(href)} className={`cursor-pointer ${className}`}>
-      {children}
-    </span>
-  )
+                    {/* Pagination */}
+                    <div className="p-4 border-t border-gray-100">
+                        <Pagination
+                            currentPage={currentPage}
+                            totalItems={filteredDCs.length}
+                            itemsPerPage={pageSize}
+                            onPageChange={setCurrentPage}
+                        />
+                    </div>
+                </GlassCard>
+            </div>
+        </DashboardLayout>
+    );
 }

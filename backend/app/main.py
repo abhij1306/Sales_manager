@@ -6,7 +6,7 @@ from app.core.exceptions import AppException
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import dashboard, po, dc, invoice, reports, search, alerts, reconciliation, po_notes, health, voice, smart_reports, ai_reports
+from app.routers import dashboard, po, dc, invoice, reports, search, alerts, reconciliation, po_notes, health, voice, smart_reports, ai_reports, auth, srv
 from app.middleware import RequestLoggingMiddleware
 from app.core.logging_config import setup_logging
 from app.db import validate_database_path
@@ -39,6 +39,8 @@ app.add_middleware(
 app.add_middleware(RequestLoggingMiddleware)
 
 # Include routers
+app.include_router(auth.router)
+app.include_router(srv.router, prefix="/api", tags=["SRV"])
 app.include_router(health.router, prefix="/api", tags=["Health"])
 app.include_router(voice.router, prefix="/api/voice", tags=["Voice Agent"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])

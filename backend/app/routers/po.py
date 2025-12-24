@@ -31,6 +31,41 @@ def get_po_detail(po_number: int, db: sqlite3.Connection = Depends(get_db)):
     """Get Purchase Order detail with items and deliveries"""
     return po_service.get_po_detail(db, po_number)
 
+@router.delete("/{po_number}")
+def delete_po(po_number: int, db: sqlite3.Connection = Depends(get_db)):
+    """
+    Delete a Purchase Order.
+    Safe Deletion Rule: Cannot delete if linked Delivery Challans exist.
+    """
+    # 1. Check for linked DCs
+    cursor = db.cursor()
+    cursor.execute("SELECT COUNT(*) FROM delivery_challans WHERE po_number = ?", (po_number,))
+    dc_count = cursor.fetchone()[0]
+
+    if dc_count > 0:
+        raise bad_request(f"Cannot delete PO-{po_number}: {dc_count} linked Delivery Challans exist. Delete them first.")
+
+    # 2. Check for linked SRVs
+    cursor.execute("SELECT COUNT(*) FROM srv_receipts WHERE po_number = ?", (str(po_number),))
+    srv_count = cursor.fetchone()[0]
+
+    if srv_count > 0:
+        raise bad_request(f"Cannot delete PO-{po_number}: {srv_count} linked SRVs exist. Delete them first.")
+
+    try:
+        # 3. Delete dependencies first (cascade manual just to be safe with SQLite)
+        cursor.execute("DELETE FROM purchase_order_deliveries WHERE po_item_id IN (SELECT id FROM purchase_order_items WHERE po_number = ?)", (po_number,))
+        cursor.execute("DELETE FROM purchase_order_items WHERE po_number = ?", (po_number,))
+
+        # 4. Delete PO
+        cursor.execute("DELETE FROM purchase_orders WHERE po_number = ?", (po_number,))
+        db.commit()
+
+        return {"success": True, "message": f"PO-{po_number} deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        raise internal_error(f"Failed to delete PO: {str(e)}")
+
 
 @router.get("/{po_number}/dc")
 def check_po_has_dc(po_number: int, db: sqlite3.Connection = Depends(get_db)):
