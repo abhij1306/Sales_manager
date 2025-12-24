@@ -1,68 +1,70 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+"""
+Authentication Router
+Handles user login and JWT token generation
+"""
+from fastapi import APIRouter, Depends, HTTPException, status, Form
 from fastapi.security import OAuth2PasswordRequestForm
-from app.db import get_connection
-from app.core.auth_utils import create_access_token, get_password_hash, verify_password, Token, get_current_user, TokenData
+from typing import Annotated
+from datetime import timedelta
 import sqlite3
-from pydantic import BaseModel
 
-router = APIRouter(prefix="/api/auth", tags=["Auth"])
+from app.db import get_db
+from app.core.auth_utils import (
+    authenticate_user,
+    create_access_token,
+    get_password_hash,
+    Token
+)
 
-class UserRegister(BaseModel):
-    username: str
-    password: str
+# Prefix is just /auth because main.py mounts it under /api
+router = APIRouter(prefix="/auth", tags=["auth"])
 
-@router.post("/register", response_model=Token)
-async def register(user: UserRegister):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    # Check if user exists
-    cursor.execute("SELECT id FROM users WHERE username = ?", (user.username,))
-    if cursor.fetchone():
-        conn.close()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already registered"
-        )
-
-    hashed_password = get_password_hash(user.password)
-
-    try:
-        cursor.execute(
-            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-            (user.username, hashed_password)
-        )
-        conn.commit()
-        user_id = cursor.lastrowid
-
-        access_token = create_access_token(data={"sub": user.username, "id": user_id})
-        return {"access_token": access_token, "token_type": "bearer"}
-    except Exception as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        conn.close()
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 @router.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    conn = get_connection()
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT * FROM users WHERE username = ?", (form_data.username,))
-    user = cursor.fetchone()
-    conn.close()
-
-    if not user or not verify_password(form_data.password, user['password_hash']):
+async def login_for_access_token(
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    db: sqlite3.Connection = Depends(get_db)
+):
+    """
+    Login endpoint. Requires username and password.
+    Returns JWT access token.
+    """
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token = create_access_token(data={"sub": user['username'], "id": user['id']})
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user["username"], "user_id": user["id"], "role": user["role"]},
+        expires_delta=access_token_expires
+    )
+
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.get("/me", response_model=TokenData)
-async def read_users_me(current_user: TokenData = Depends(get_current_user)):
-    return current_user
+@router.post("/register")
+def register_user(
+    username: Annotated[str, Form()],
+    password: Annotated[str, Form()],
+    role: Annotated[str, Form()] = "user",
+    db: sqlite3.Connection = Depends(get_db)
+):
+    """
+    Register a new user (for testing/setup purposes).
+    """
+    hashed_password = get_password_hash(password)
+    try:
+        db.execute(
+            "INSERT INTO users (username, hashed_password, role) VALUES (?, ?, ?)",
+            (username, hashed_password, role)
+        )
+        return {"username": username, "status": "created"}
+    except sqlite3.IntegrityError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already registered"
+        )

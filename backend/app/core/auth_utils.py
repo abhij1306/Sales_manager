@@ -5,6 +5,7 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
+import sqlite3
 
 # Configuration
 SECRET_KEY = "your-secret-key-keep-it-secret"  # In prod, get from env
@@ -28,6 +29,15 @@ def verify_password(plain_password, hashed_password):
 def get_password_hash(password):
     return pwd_context.hash(password)
 
+def authenticate_user(db: sqlite3.Connection, username: str, password: str):
+    cursor = db.execute("SELECT * FROM users WHERE username = ?", (username,))
+    user = cursor.fetchone()
+    if not user:
+        return False
+    if not verify_password(password, user["hashed_password"]):
+        return False
+    return user
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
@@ -47,8 +57,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
-        user_id: int = payload.get("id")
-        if username is None or user_id is None:
+        user_id: int = payload.get("user_id")
+        if username is None:
             raise credentials_exception
         token_data = TokenData(username=username, user_id=user_id)
     except jwt.JWTError:

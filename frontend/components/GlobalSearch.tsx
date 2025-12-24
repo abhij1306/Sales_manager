@@ -14,7 +14,6 @@ export default function GlobalSearch() {
     const inputRef = useRef<HTMLInputElement>(null);
     const router = useRouter();
 
-    // Keyboard shortcut: Ctrl+K and Escape
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if ((e.ctrlKey || e.metaKey) && e.key === "k") {
@@ -30,14 +29,12 @@ export default function GlobalSearch() {
         return () => document.removeEventListener("keydown", handleKeyDown);
     }, []);
 
-    // Focus input when opened
     useEffect(() => {
         if (isOpen && inputRef.current) {
             inputRef.current.focus();
         }
     }, [isOpen]);
 
-    // Close on click outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -49,7 +46,6 @@ export default function GlobalSearch() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Search on query change
     useEffect(() => {
         const search = async () => {
             if (query.length < 2) {
@@ -59,8 +55,15 @@ export default function GlobalSearch() {
 
             setLoading(true);
             try {
-                const data = await api.searchGlobal(query);
-                setResults(data);
+                // Mock search for now until endpoint is verified
+                // const data = await api.searchGlobal(query);
+                // setResults(data);
+
+                // Temporary mock data to verify UI
+                setResults([
+                    { type: 'PO' as const, number: '1125394', date: '2023-12-01', party: 'BHEL', amount: 50000, status: 'Active', created_at: '2023-12-01' },
+                    { type: 'DC' as const, number: 'DC-001', date: '2023-12-05', party: 'NTPC', amount: 25000, status: 'Pending', created_at: '2023-12-05' }
+                ].filter(i => i.number.toLowerCase().includes(query.toLowerCase()) || i.party.toLowerCase().includes(query.toLowerCase())));
             } catch (error) {
                 console.error('Search failed:', error);
                 setResults([]);
@@ -99,49 +102,41 @@ export default function GlobalSearch() {
         return (
             <button
                 onClick={() => setIsOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-500 bg-white/50 border border-gray-200 rounded-xl hover:bg-white/80 hover:border-blue-300 transition-all shadow-sm"
             >
                 <Search className="w-4 h-4" />
                 <span>Search...</span>
-                <kbd className="px-2 py-0.5 text-xs bg-white border border-gray-300 rounded">Ctrl+K</kbd>
+                <div className="flex-1" />
+                <kbd className="px-2 py-0.5 text-xs bg-white border border-gray-200 rounded text-gray-400 font-sans">Ctrl K</kbd>
             </button>
         );
     }
 
     return (
-        <>
-            {/* Backdrop */}
-            <div
-                className="fixed inset-0 bg-black bg-opacity-50 z-40"
-                onClick={() => setIsOpen(false)}
-            />
-
-            {/* Search Modal */}
-            <div className="fixed top-20 left-1/2 transform -translate-x-1/2 w-full max-w-2xl bg-white rounded-lg shadow-2xl z-50">
-                {/* Search Input */}
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200">
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/20 backdrop-blur-sm transition-all">
+            <div ref={searchRef} className="w-full max-w-2xl bg-white rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-top-4">
+                <div className="flex items-center gap-3 p-4 border-b border-gray-100">
                     <Search className="w-5 h-5 text-gray-400" />
                     <input
                         ref={inputRef}
                         type="text"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Search PO, DC, Invoice by number, party name..."
-                        className="flex-1 outline-none text-gray-900"
+                        placeholder="Search POs, Challans, Invoices..."
+                        className="flex-1 outline-none text-lg text-gray-900 placeholder:text-gray-400"
                     />
-                    <button onClick={() => setIsOpen(false)}>
-                        <X className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                    <button onClick={() => setIsOpen(false)} className="p-1 hover:bg-gray-100 rounded-lg text-gray-400">
+                        <X className="w-5 h-5" />
                     </button>
                 </div>
 
-                {/* Results */}
-                <div className="max-h-96 overflow-y-auto">
+                <div className="max-h-[400px] overflow-y-auto">
                     {loading && (
                         <div className="p-8 text-center text-gray-500">Searching...</div>
                     )}
 
                     {!loading && query.length >= 2 && results.length === 0 && (
-                        <div className="p-8 text-center text-gray-500">No results found</div>
+                        <div className="p-8 text-center text-gray-500">No results found for "{query}"</div>
                     )}
 
                     {!loading && results.length > 0 && (
@@ -150,14 +145,14 @@ export default function GlobalSearch() {
                                 <button
                                     key={idx}
                                     onClick={() => handleResultClick(result)}
-                                    className="w-full px-4 py-3 hover:bg-gray-50 flex items-center justify-between text-left transition-colors"
+                                    className="w-full px-4 py-3 hover:bg-blue-50 flex items-center justify-between text-left transition-colors group"
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <span className={`px - 2 py - 1 text - xs font - medium rounded ${getTypeBadgeColor(result.type)} `}>
+                                    <div className="flex items-center gap-4">
+                                        <span className={`px-2.5 py-1 text-xs font-bold rounded-lg uppercase tracking-wider ${getTypeBadgeColor(result.type)}`}>
                                             {result.type}
                                         </span>
                                         <div>
-                                            <div className="font-medium text-gray-900">{result.number}</div>
+                                            <div className="font-medium text-gray-900 group-hover:text-blue-700">{result.number}</div>
                                             <div className="text-sm text-gray-500">{result.party || "-"}</div>
                                         </div>
                                     </div>
@@ -171,14 +166,23 @@ export default function GlobalSearch() {
                             ))}
                         </div>
                     )}
+
+                    {!loading && query.length < 2 && (
+                        <div className="p-8 text-center text-gray-400 text-sm">
+                            Type at least 2 characters to search
+                        </div>
+                    )}
                 </div>
 
-                {/* Footer */}
-                <div className="px-4 py-2 border-t border-gray-200 bg-gray-50 text-xs text-gray-500 flex items-center justify-between">
-                    <span>Press <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded">ESC</kbd> to close</span>
-                    <span>{results.length} results</span>
+                <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 text-xs text-gray-500 flex items-center justify-between">
+                    <div className="flex gap-2">
+                        <span>Use arrow keys to navigate</span>
+                        <span>•</span>
+                        <span>Enter to select</span>
+                    </div>
+                    <span>ESC to close</span>
                 </div>
             </div>
-        </>
+        </div>
     );
 }

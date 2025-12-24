@@ -17,13 +17,14 @@ from app.services.dc import (
 from typing import List, Optional
 import sqlite3
 import logging
+from app.core.auth_utils import get_current_user, TokenData
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
 @router.get("/stats", response_model=DCStats)
-def get_dc_stats(db: sqlite3.Connection = Depends(get_db)):
+def get_dc_stats(db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """Get DC Page Statistics"""
     try:
         # Total Challans
@@ -50,7 +51,7 @@ def get_dc_stats(db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.get("/", response_model=List[DCListItem])
-def list_dcs(po: Optional[int] = None, db: sqlite3.Connection = Depends(get_db)):
+def list_dcs(po: Optional[int] = None, db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """List all Delivery Challans, optionally filtered by PO"""
     
     # Optimized query with JOIN to eliminate N+1 problem
@@ -97,7 +98,7 @@ def list_dcs(po: Optional[int] = None, db: sqlite3.Connection = Depends(get_db))
 
 
 @router.get("/{dc_number}")
-def get_dc_detail(dc_number: str, db: sqlite3.Connection = Depends(get_db)):
+def get_dc_detail(dc_number: str, db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """Get Delivery Challan detail with items"""
     
     # Get DC header
@@ -159,7 +160,7 @@ def get_dc_detail(dc_number: str, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("/")
-def create_dc(dc: DCCreate, items: List[dict], db: sqlite3.Connection = Depends(get_db)):
+def create_dc(dc: DCCreate, items: List[dict], db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """
     Create new Delivery Challan with items
     items format: [{
@@ -226,7 +227,7 @@ def check_dc_has_invoice_endpoint(dc_number: str, db: sqlite3.Connection = Depen
 
 
 @router.put("/{dc_number}")
-def update_dc(dc_number: str, dc: DCCreate, items: List[dict], db: sqlite3.Connection = Depends(get_db)):
+def update_dc(dc_number: str, dc: DCCreate, items: List[dict], db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """Update existing Delivery Challan - BLOCKED if invoice exists"""
     
     # Use service layer with transaction protection
@@ -269,7 +270,7 @@ def update_dc(dc_number: str, dc: DCCreate, items: List[dict], db: sqlite3.Conne
         raise internal_error(f"Database integrity error: {str(e)}", e)
 
 @router.delete("/{dc_number}")
-def delete_dc(dc_number: str, db: sqlite3.Connection = Depends(get_db)):
+def delete_dc(dc_number: str, db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """
     Delete a Delivery Challan.
     Safe Deletion Rule: Cannot delete if linked Invoices exist.

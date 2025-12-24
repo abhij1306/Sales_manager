@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Edit2, Trash2, FileText, X, CheckSquare } from "lucide-react";
-import { api, PONote } from '@/lib/api';
+import { api, PONote } from "@/lib/api";
+import {
+    Plus, Edit2, Trash2, X, FileText, CheckSquare
+} from "lucide-react";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { GlassCard } from "@/components/ui/glass/GlassCard";
+import { GlassButton } from "@/components/ui/glass/GlassButton";
+import { GlassInput } from "@/components/ui/glass/GlassInput";
 
 export default function PONotesPage() {
     const [templates, setTemplates] = useState<PONote[]>([]);
@@ -11,34 +17,32 @@ export default function PONotesPage() {
     const [editingId, setEditingId] = useState<number | null>(null);
     const [formData, setFormData] = useState({ title: "", content: "" });
 
-    useEffect(() => {
-        loadTemplates();
-    }, []);
-
     const loadTemplates = async () => {
         try {
             const data = await api.getPONotes();
             setTemplates(data);
-            setLoading(false);
         } catch (err) {
             console.error("Failed to load templates:", err);
+        } finally {
             setLoading(false);
         }
     };
 
+    useEffect(() => {
+        loadTemplates();
+    }, []);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-
         try {
             if (editingId) {
                 await api.updatePONote(editingId.toString(), formData);
             } else {
                 await api.createPONote(formData);
             }
-
-            setFormData({ title: "", content: "" });
-            setEditingId(null);
             setShowForm(false);
+            setEditingId(null);
+            setFormData({ title: "", content: "" });
             loadTemplates();
         } catch (err) {
             console.error("Failed to save template:", err);
@@ -64,161 +68,144 @@ export default function PONotesPage() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-full">
-                <div className="text-primary font-medium">Loading templates...</div>
-            </div>
+            <DashboardLayout>
+                <div className="flex h-[80vh] items-center justify-center">
+                    <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full"></div>
+                </div>
+            </DashboardLayout>
         );
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between pb-2">
-                <div>
-                    <h1 className="text-[20px] font-semibold text-text-primary tracking-tight">PO Notes Templates</h1>
-                    <p className="text-[13px] text-text-secondary mt-1">Manage reusable notes for delivery challans</p>
+        <DashboardLayout>
+            <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">PO Notes Templates</h1>
+                        <p className="text-sm text-gray-500 mt-1">Manage reusable notes for delivery challans</p>
+                    </div>
+                    <GlassButton
+                        onClick={() => {
+                            setFormData({ title: "", content: "" });
+                            setEditingId(null);
+                            setShowForm(true);
+                        }}
+                        className="flex items-center gap-2"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Add Template
+                    </GlassButton>
                 </div>
-                <button
-                    onClick={() => {
-                        setFormData({ title: "", content: "" });
-                        setEditingId(null);
-                        setShowForm(true);
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm"
-                >
-                    <Plus className="w-4 h-4" />
-                    Add Template
-                </button>
-            </div>
 
-            {/* Form Modal */}
-            {showForm && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="glass-card-no-hover w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
-                        <div className="p-4 border-b border-border bg-gray-50/50 flex items-center justify-between">
-                            <h2 className="text-[16px] font-semibold text-text-primary">
-                                {editingId ? "Edit Template" : "New Template"}
-                            </h2>
-                            <button
-                                onClick={() => setShowForm(false)}
-                                className="text-text-secondary hover:text-text-primary p-1"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="p-6">
-                            <div className="mb-4">
-                                <label className="block text-[11px] font-semibold text-text-secondary uppercase tracking-wider mb-2">
-                                    Template Title
-                                </label>
-                                <input
-                                    type="text"
+                {/* Form Modal */}
+                {showForm && (
+                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <GlassCard className="w-full max-w-2xl p-0 overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200 bg-white/90">
+                            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                                <h2 className="text-lg font-bold text-gray-900">
+                                    {editingId ? "Edit Template" : "New Template"}
+                                </h2>
+                                <button
+                                    onClick={() => setShowForm(false)}
+                                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                                <GlassInput
+                                    label="Template Title"
                                     value={formData.title}
                                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                    className="w-full px-3 py-2 border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary bg-white text-sm"
                                     placeholder="e.g., Standard Warranty Terms"
                                     required
                                 />
-                            </div>
-                            <div className="mb-6">
-                                <label className="block text-[11px] font-semibold text-text-secondary uppercase tracking-wider mb-2">
-                                    Template Content
-                                </label>
-                                <textarea
-                                    value={formData.content}
-                                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                                    rows={6}
-                                    className="w-full px-3 py-2 border border-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary text-text-primary bg-white text-sm"
-                                    placeholder="Enter the template text here..."
-                                    required
-                                />
-                            </div>
-                            <div className="flex gap-3 justify-end pt-4 border-t border-border">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowForm(false);
-                                        setEditingId(null);
-                                        setFormData({ title: "", content: "" });
-                                    }}
-                                    className="px-4 py-2 text-sm font-medium text-text-secondary bg-white border border-border rounded-lg hover:bg-gray-50 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-4 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-                                >
-                                    {editingId ? "Update Template" : "Create Template"}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Templates Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {templates.map((template) => (
-                    <div
-                        key={template.id}
-                        className="glass-card p-6 group flex flex-col h-full"
-                    >
-                        <div className="flex items-start justify-between mb-4">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center border border-indigo-100/50">
-                                    <FileText className="w-5 h-5 text-primary" />
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5 ml-1">
+                                        Template Content
+                                    </label>
+                                    <textarea
+                                        value={formData.content}
+                                        onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                                        rows={6}
+                                        className="w-full bg-white/50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none backdrop-blur-sm"
+                                        placeholder="Enter the template text here..."
+                                        required
+                                    />
                                 </div>
-                                <h3 className="text-[14px] font-semibold text-text-primary line-clamp-1" title={template.title}>{template.title}</h3>
-                            </div>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                    onClick={() => handleEdit(template)}
-                                    className="p-1.5 text-text-secondary hover:text-primary hover:bg-blue-50 rounded transition-colors"
-                                    title="Edit"
-                                >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                    onClick={() => handleDelete(template.id)}
-                                    className="p-1.5 text-text-secondary hover:text-danger hover:bg-red-50 rounded transition-colors"
-                                    title="Delete"
-                                >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-                        </div>
-                        <div className="flex-1 bg-gray-50/50 rounded border border-border/50 p-3 mb-4">
-                            <p className="text-[13px] text-text-secondary line-clamp-4 leading-relaxed whitespace-pre-wrap">{template.content}</p>
-                        </div>
-
-                        <div className="flex items-center justify-between mt-auto pt-3 border-t border-border/50">
-                            <div className="text-[11px] text-text-secondary/70">
-                                Updated {new Date(template.updated_at).toLocaleDateString()}
-                            </div>
-                            <span className="flex items-center gap-1 text-[10px] font-medium text-success bg-success/10 px-2 py-0.5 rounded-full border border-success/20">
-                                <CheckSquare className="w-3 h-3" /> Active
-                            </span>
-                        </div>
+                                <div className="flex gap-3 justify-end pt-4">
+                                    <GlassButton
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() => setShowForm(false)}
+                                    >
+                                        Cancel
+                                    </GlassButton>
+                                    <GlassButton type="submit">
+                                        {editingId ? "Update Template" : "Create Template"}
+                                    </GlassButton>
+                                </div>
+                            </form>
+                        </GlassCard>
                     </div>
-                ))}
-            </div>
+                )}
 
-            {templates.length === 0 && (
-                <div className="text-center py-16 bg-white/40 border border-dashed border-border rounded-xl">
-                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-border">
-                        <FileText className="w-8 h-8 text-text-secondary/50" />
-                    </div>
-                    <h3 className="text-[16px] font-medium text-text-primary mb-1">No templates yet</h3>
-                    <p className="text-[13px] text-text-secondary mb-6">Create reusable notes to speed up your workflow</p>
-                    <button
-                        onClick={() => setShowForm(true)}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Create First Template
-                    </button>
+                {/* Templates Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {templates.map((template) => (
+                        <GlassCard key={template.id} className="p-6 group flex flex-col h-full hover:border-blue-200 transition-colors">
+                            <div className="flex items-start justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                        <FileText className="w-5 h-5" />
+                                    </div>
+                                    <h3 className="font-bold text-gray-900 line-clamp-1">{template.title}</h3>
+                                </div>
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                        onClick={() => handleEdit(template)}
+                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                    >
+                                        <Edit2 className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(template.id)}
+                                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="flex-1 bg-gray-50/50 rounded-lg border border-gray-100 p-3 mb-4">
+                                <p className="text-sm text-gray-600 line-clamp-4 leading-relaxed whitespace-pre-wrap">{template.content}</p>
+                            </div>
+
+                            <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-100">
+                                <span className="text-xs text-gray-400">
+                                    Updated {new Date(template.updated_at).toLocaleDateString()}
+                                </span>
+                                <span className="flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                                    <CheckSquare className="w-3 h-3" /> Active
+                                </span>
+                            </div>
+                        </GlassCard>
+                    ))}
                 </div>
-            )}
-        </div>
+
+                {templates.length === 0 && (
+                    <div className="text-center py-16">
+                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <FileText className="w-8 h-8 text-gray-400" />
+                        </div>
+                        <h3 className="text-lg font-medium text-gray-900 mb-1">No templates yet</h3>
+                        <p className="text-sm text-gray-500 mb-6">Create reusable notes to speed up your workflow</p>
+                        <GlassButton onClick={() => setShowForm(true)}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            Create First Template
+                        </GlassButton>
+                    </div>
+                )}
+            </div>
+        </DashboardLayout>
     );
 }

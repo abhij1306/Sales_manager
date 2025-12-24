@@ -7,7 +7,8 @@ from app.services.srv.srv_scraper import scrape_srv_html
 import sqlite3
 import logging
 
-router = APIRouter(prefix="/srv", tags=["SRV"])
+# Prefix handled in main.py (/api/srv)
+router = APIRouter(tags=["SRV"])
 logger = logging.getLogger(__name__)
 
 class SRVCreate(BaseModel):

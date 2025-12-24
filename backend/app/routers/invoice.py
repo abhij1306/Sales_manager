@@ -15,6 +15,7 @@ from typing import List, Optional
 import sqlite3
 import logging
 from pydantic import BaseModel
+from app.core.auth_utils import get_current_user, TokenData
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -77,7 +78,7 @@ class EnhancedInvoiceCreate(BaseModel):
 # ============================================================================
 
 @router.get("/stats", response_model=InvoiceStats)
-def get_invoice_stats(db: sqlite3.Connection = Depends(get_db)):
+def get_invoice_stats(db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """Get Invoice Page Statistics"""
     try:
         total_row = db.execute("SELECT SUM(total_invoice_value) FROM gst_invoices").fetchone()
@@ -110,7 +111,8 @@ def list_invoices(
     po: Optional[int] = None, 
     dc: Optional[str] = None, 
     status: Optional[str] = None, 
-    db: sqlite3.Connection = Depends(get_db)
+    db: sqlite3.Connection = Depends(get_db),
+    current_user: TokenData = Depends(get_current_user)
 ):
     """List all Invoices, optionally filtered by PO, DC, or Status"""
     
@@ -138,7 +140,7 @@ def list_invoices(
 
 
 @router.get("/{invoice_number}")
-def get_invoice_detail(invoice_number: str, db: sqlite3.Connection = Depends(get_db)):
+def get_invoice_detail(invoice_number: str, db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """Get Invoice detail with items and linked DCs"""
     
     invoice_row = db.execute("""
@@ -169,7 +171,7 @@ def get_invoice_detail(invoice_number: str, db: sqlite3.Connection = Depends(get
 
 
 @router.post("/")
-def create_invoice(request: EnhancedInvoiceCreate, db: sqlite3.Connection = Depends(get_db)):
+def create_invoice(request: EnhancedInvoiceCreate, db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """
     Create Invoice from Delivery Challan
     

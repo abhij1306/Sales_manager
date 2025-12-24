@@ -11,28 +11,30 @@ import sqlite3
 from bs4 import BeautifulSoup
 from app.services.po_scraper import extract_po_header, extract_items
 from app.services.ingest_po import POIngestionService
+from app.core.auth_utils import get_current_user, TokenData
 
 from app.services.po_service import po_service
 
 router = APIRouter()
 
 @router.get("/stats", response_model=POStats)
-def get_po_stats(db: sqlite3.Connection = Depends(get_db)):
+def get_po_stats(db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """Get PO Page Statistics"""
     return po_service.get_stats(db)
 
 @router.get("/", response_model=List[POListItem])
-def list_pos(db: sqlite3.Connection = Depends(get_db)):
+def list_pos(db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """List all Purchase Orders with quantity details"""
+    # In future, filter by current_user.user_id if strict ownership is required
     return po_service.list_pos(db)
 
 @router.get("/{po_number}", response_model=PODetail)
-def get_po_detail(po_number: int, db: sqlite3.Connection = Depends(get_db)):
+def get_po_detail(po_number: int, db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """Get Purchase Order detail with items and deliveries"""
     return po_service.get_po_detail(db, po_number)
 
 @router.delete("/{po_number}")
-def delete_po(po_number: int, db: sqlite3.Connection = Depends(get_db)):
+def delete_po(po_number: int, db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """
     Delete a Purchase Order.
     Safe Deletion Rule: Cannot delete if linked Delivery Challans exist.
@@ -90,7 +92,7 @@ def check_po_has_dc(po_number: int, db: sqlite3.Connection = Depends(get_db)):
         return {"has_dc": False}
 
 @router.post("/upload")
-async def upload_po_html(file: UploadFile = File(...), db: sqlite3.Connection = Depends(get_db)):
+async def upload_po_html(file: UploadFile = File(...), db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """Upload and parse PO HTML file"""
     
     if not file.filename.endswith('.html'):
@@ -121,7 +123,7 @@ async def upload_po_html(file: UploadFile = File(...), db: sqlite3.Connection = 
         raise internal_error(f"Failed to ingest PO: {str(e)}", e)
 
 @router.post("/upload/batch")
-async def upload_po_batch(files: List[UploadFile] = File(...), db: sqlite3.Connection = Depends(get_db)):
+async def upload_po_batch(files: List[UploadFile] = File(...), db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """Upload and parse multiple PO HTML files"""
     
     results = []

@@ -3,7 +3,7 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, PODetailData, POItem, PODelivery } from "@/lib/api";
+import { api, PODetail, POItem, PODelivery } from "@/lib/api";
 import {
     ChevronLeft, Save, Edit, Trash2, Plus,
     Calendar, Building, FileText, Package, Truck,
@@ -51,7 +51,7 @@ export default function PODetailPage({ params }: { params: Promise<{ id: string 
     const router = useRouter();
     const { id: poId } = use(params);
 
-    const [data, setData] = useState<PODetailData | null>(null);
+    const [data, setData] = useState<PODetail | null>(null);
     const [loading, setLoading] = useState(true);
     const [editMode, setEditMode] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -63,7 +63,7 @@ export default function PODetailPage({ params }: { params: Promise<{ id: string 
 
     const loadPO = async () => {
         try {
-            const poData = await api.getPODetail(poId);
+            const poData = await api.getPODetail(parseInt(poId));
             setData(poData);
         } catch (err) {
             console.error("Failed to load PO:", err);

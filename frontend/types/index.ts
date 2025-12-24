@@ -22,9 +22,8 @@ export interface ActivityItem {
     type: string;
     number: string;
     date: string;
-    party: string;
-    amount: number | null;
-    status: string;
+    description: string;
+    created_at: string;
 }
 
 export interface SearchResult {
@@ -105,6 +104,7 @@ export interface PODelivery {
     id?: string;
     lot_no?: number;
     delivered_quantity?: number;
+    dely_qty?: number;
     dely_date?: string;
     entry_allow_date?: string;
     dest_code?: number;
@@ -134,6 +134,7 @@ export interface POHeader {
     supplier_name?: string;
     supplier_gstin?: string;
     supplier_code?: string;
+    supplier_address?: string;
     supplier_phone?: string;
     supplier_fax?: string;
     supplier_email?: string;
@@ -145,6 +146,7 @@ export interface POHeader {
     rc_no?: string;
     order_type?: string;
     po_status?: string;
+    payment_terms?: string;
     tin_no?: string;
     ecc_no?: string;
     mpct_no?: string;

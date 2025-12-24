@@ -22,6 +22,11 @@ interface PODependencyData {
     total_pos: number;
 }
 
+interface PODependencyReportProps {
+    data: PODependencyData;
+    aiSummary?: string;
+}
+
 export default function PODependencyReport({ data, aiSummary }: PODependencyReportProps) {
     const categories = [
         {

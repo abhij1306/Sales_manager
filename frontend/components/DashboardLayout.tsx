@@ -12,9 +12,16 @@ import {
   ClipboardCheck,
   LogOut,
   Menu,
-  X
+  X,
+  StickyNote,
+  BarChart,
+  Bell,
+  Search
 } from 'lucide-react';
 import { GlassButton } from '@/components/ui/glass/GlassButton';
+import GlobalSearch from '@/components/GlobalSearch';
+import AlertsPanel from '@/components/AlertsPanel';
+import ReadinessStrip from '@/components/ReadinessStrip';
 
 const NavItem = ({ href, icon: Icon, label, active }: { href: string, icon: any, label: string, active: boolean }) => (
   <Link href={href}>
@@ -33,6 +40,7 @@ const NavItem = ({ href, icon: Icon, label, active }: { href: string, icon: any,
 export const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [alertsOpen, setAlertsOpen] = React.useState(false);
 
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -40,6 +48,8 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
     { href: '/dc', label: 'Delivery Challans', icon: Truck },
     { href: '/invoice', label: 'GST Invoices', icon: Receipt },
     { href: '/srv', label: 'SRV Receipts', icon: ClipboardCheck },
+    { href: '/po-notes', label: 'PO Notes', icon: StickyNote },
+    { href: '/reports', label: 'Reports', icon: BarChart },
   ];
 
   return (
@@ -54,7 +64,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed lg:sticky top-0 left-0 z-50 h-screen w-72 bg-white/80 backdrop-blur-xl border-r border-white/20 transition-transform duration-300 lg:translate-x-0",
+        "fixed lg:sticky top-0 left-0 z-50 h-screen w-72 bg-white/80 backdrop-blur-xl border-r border-white/20 transition-transform duration-300 lg:translate-x-0 flex flex-col",
         mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex flex-col h-full p-6">
@@ -67,7 +77,7 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
             </span>
           </div>
 
-          <nav className="flex-1 space-y-2">
+          <nav className="flex-1 space-y-2 overflow-y-auto custom-scrollbar">
             {navItems.map((item) => (
               <NavItem
                 key={item.href}
@@ -78,6 +88,9 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
           </nav>
 
           <div className="pt-6 border-t border-gray-100">
+             <div className="mb-4">
+                 <ReadinessStrip />
+             </div>
             <GlassButton
               variant="ghost"
               className="w-full justify-start text-red-600 hover:bg-red-50 hover:text-red-700"
@@ -93,22 +106,44 @@ export const DashboardLayout = ({ children }: { children: React.ReactNode }) => 
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 min-w-0">
-        <div className="sticky top-0 z-30 flex items-center justify-between px-6 py-4 bg-white/50 backdrop-blur-md border-b border-white/20 lg:hidden">
-          <span className="font-semibold text-gray-900">SenstoSales</span>
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 text-gray-600 hover:bg-white/50 rounded-lg"
-          >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-        </div>
+      {/* Main Content Area */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        {/* Top Header */}
+        <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-4 bg-white/50 backdrop-blur-md border-b border-white/20">
+          <div className="flex items-center gap-4">
+            <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="lg:hidden p-2 text-gray-600 hover:bg-white/50 rounded-lg"
+            >
+                <Menu className="w-6 h-6" />
+            </button>
+            <div className="hidden md:block w-96">
+                <GlobalSearch />
+            </div>
+          </div>
 
-        <div className="p-6 lg:p-10 max-w-7xl mx-auto">
-          {children}
-        </div>
-      </main>
+          <div className="flex items-center gap-4">
+             <button
+                className="relative p-2 text-gray-600 hover:bg-white/50 rounded-xl transition-all"
+                onClick={() => setAlertsOpen(!alertsOpen)}
+             >
+                <Bell className="w-5 h-5" />
+                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
+             </button>
+             <div className="h-8 w-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full ring-2 ring-white shadow-sm" />
+          </div>
+        </header>
+
+        {/* Content */}
+        <main className="flex-1 p-6 lg:p-10 max-w-7xl mx-auto w-full">
+           {alertsOpen && (
+               <div className="mb-6 animate-in slide-in-from-top-2">
+                   <AlertsPanel onClose={() => setAlertsOpen(false)} />
+               </div>
+           )}
+           {children}
+        </main>
+      </div>
     </div>
   );
 };

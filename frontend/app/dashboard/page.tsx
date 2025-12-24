@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api, DashboardSummary, ActivityItem } from "@/lib/api";
 import {
     TrendingUp, ShoppingBag, Truck, Receipt,
@@ -26,38 +27,42 @@ const chartData = [
 ];
 
 export default function DashboardPage() {
+    const router = useRouter();
     const [summary, setSummary] = useState<DashboardSummary | null>(null);
     const [activities, setActivities] = useState<ActivityItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            router.push('/auth/login');
+            return;
+        }
+
         const fetchData = async () => {
             try {
-                // Assuming these endpoints exist or we mock them
-                // The current API might not have getRecentActivity, so we might need to handle that
-                const summaryData = await api.getDashboardStats();
+                // 1. Get Summary Stats
+                const summaryData = await api.getDashboardSummary();
                 setSummary(summaryData);
 
-                // Fetch recent activity via dedicated endpoint or parallel list calls
-                // For now, let's mock activity if the endpoint is missing or we simulate it
-                const recentPos = await api.listPOs(0, 5);
-                const acts = recentPos.map(po => ({
-                    type: "PO",
-                    number: po.po_number.toString(),
-                    date: po.po_date || "",
-                    description: `New Purchase Order from ${po.supplier_name?.substring(0, 20)}...`,
-                    created_at: "Just now"
-                }));
-                setActivities(acts);
+                // 2. Fetch Recent Activity
+                const activityData = await api.getRecentActivity();
+                setActivities(activityData);
 
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Failed to load dashboard:", err);
+                // Handle various 401 messages
+                if (err.message?.includes('401') ||
+                    err.message?.includes('Unauthorized') ||
+                    err.message?.includes('Not authenticated')) {
+                    router.push('/auth/login');
+                }
             } finally {
                 setLoading(false);
             }
         };
         fetchData();
-    }, []);
+    }, [router]);
 
     if (loading) {
         return (
@@ -238,7 +243,7 @@ export default function DashboardPage() {
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <span className="text-xs text-gray-500">{item.type} #{item.number}</span>
                                                     <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                                                    <span className="text-xs text-gray-400">{item.created_at}</span>
+                                                    <span className="text-xs text-gray-400">{item.date}</span>
                                                 </div>
                                             </div>
                                         </div>
