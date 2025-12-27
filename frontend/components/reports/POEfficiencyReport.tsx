@@ -26,6 +26,11 @@ interface POEfficiencyData {
     };
 }
 
+interface POEfficiencyReportProps {
+    data: POEfficiencyData;
+    aiSummary?: string;
+}
+
 export default function POEfficiencyReport({ data, aiSummary }: POEfficiencyReportProps) {
     return (
         <div className="space-y-6">

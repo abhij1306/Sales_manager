@@ -28,6 +28,11 @@ interface POAgingData {
     total_pending_qty: number;
 }
 
+interface POAgingReportProps {
+    data: POAgingData;
+    aiSummary?: string;
+}
+
 export default function POAgingReport({ data, aiSummary }: POAgingReportProps) {
     const buckets = [
         { key: "0_7_days", label: "0-7 Days", color: "bg-success", data: data.age_buckets["0_7_days"] },

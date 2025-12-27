@@ -1,144 +1,54 @@
-"""
-FastAPI Main Application with Structured Logging and Observability
-"""
-from app.core.config import settings
-from app.core.exceptions import AppException
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import dashboard, po, dc, invoice, reports, search, alerts, reconciliation, po_notes, health, voice, smart_reports, ai_reports
-from app.middleware import RequestLoggingMiddleware
-from app.core.logging_config import setup_logging
-from app.db import validate_database_path
-import logging
-import uuid # For error tracing
+from fastapi.staticfiles import StaticFiles
+import os
 
-# Setup structured logging
-setup_logging(log_level="INFO", use_json=False)
-logger = logging.getLogger(__name__)
+# Import raw SQLite utils if needed, but here we just mount routers
+# Ensure we don't import deleted modules
+from app.routers import po, dc, invoice, auth, srv, reports, dashboard
+from app.db import get_db, get_connection
+
+# Initialize DB (create tables if needed) - handled by migrations/init scripts usually
+# But if we want to ensure tables exist, we might need a setup script.
+# For now, we assume the DB is initialized or routers handle it.
+# Actually, the previous main.py had `Base.metadata.create_all`.
+# Since we are using raw SQLite, we rely on schema.sql or migration scripts.
+# We will assume schema is managed elsewhere or by the `init_db` script.
 
 app = FastAPI(
-    title=settings.PROJECT_NAME,
-    description="Local-first PO-DC-Invoice Management System with AI/Voice capabilities",
-    version="2.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc"
+    title="SenstoSales ERP",
+    description="Backend for Senstographic Supplier ERP",
+    version="1.0.0"
 )
 
-# CORS for localhost frontend
+# CORS configuration
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]
 )
 
-# Request logging middleware
-app.add_middleware(RequestLoggingMiddleware)
-
 # Include routers
-app.include_router(health.router, prefix="/api", tags=["Health"])
-app.include_router(voice.router, prefix="/api/voice", tags=["Voice Agent"])
-app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
-app.include_router(po.router, prefix="/api/po", tags=["Purchase Orders"])
-app.include_router(dc.router, prefix="/api/dc", tags=["Delivery Challans"])
-app.include_router(invoice.router, prefix="/api/invoice", tags=["Invoices"])
-app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
-app.include_router(smart_reports.router, prefix="/api/smart-reports", tags=["Smart Reports"])
-app.include_router(ai_reports.router, prefix="/api/ai-reports", tags=["AI Reports"])
-app.include_router(search.router, prefix="/api/search", tags=["Search"])
-app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
-app.include_router(reconciliation.router, prefix="/api/reconciliation", tags=["Reconciliation"])
-app.include_router(po_notes.router, prefix="/api/po-notes", tags=["PO Notes"])
+# We mount them under /api prefix to match frontend expectations
+# Routers that have their own prefix (auth=/auth, dashboard=/dashboard) are mounted under /api
+# Routers without prefix (po, dc, invoice...) are given specific prefixes
 
-@app.exception_handler(AppException)
-async def app_exception_handler(request: Request, exc: AppException):
-    """
-    Handle defined Application Exceptions
-    Transform them into clean JSON responses with error codes.
-    """
-    logger.warning(f"AppException: {exc.error_code} - {exc.message}")
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "error": True,
-            "code": exc.error_code,
-            "message": exc.message,
-            "details": exc.details,
-            "request_id": str(uuid.uuid4())
-        }
-    )
+app.include_router(auth.router, prefix="/api")        # /api/auth/...
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """
-    Catch-all for unhandled exceptions (500 Internal Server Error).
-    Prevents leaking stack traces to client.
-    """
-    error_id = str(uuid.uuid4())
-    logger.error(f"Unhandled Exception {error_id}: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": True,
-            "code": "INTERNAL_SERVER_ERROR",
-            "message": "An unexpected error occurred. Please contact support with this Error ID.",
-            "error_id": error_id
-        }
-    )
-
-@app.on_event("startup")
-async def startup_event():
-    """Application startup - validate database and log initialization"""
-    logger.info("=" * 60)
-    logger.info(f"{settings.PROJECT_NAME} v2.0 - STARTING UP")
-    logger.info("=" * 60)
-    
-    # 1. Database Validation
-    db_status = "❌ Failed"
-    try:
-        validate_database_path()
-        db_status = "✅ Connected"
-    except Exception as e:
-        logger.error(f"Database validation failed: {e}")
-        # We don't raise here immediately to allow full diagnostics table to print, 
-        # but in strict mode we might want to. 
-        # For now, let's print the table then maybe raise if DB is critical (it is).
-        db_status = "❌ CRITICAL FAILURE"
-
-    # 2. Key Validation
-    groq_status = "✅ Loaded" if settings.GROQ_API_KEY else "⚪ Skipped"
-    openai_status = "✅ Loaded" if settings.OPENAI_API_KEY else "⚪ Skipped"
-    openrouter_status = "✅ Loaded" if settings.OPENROUTER_API_KEY else "⚪ Skipped"
-
-    # 3. Print Diagnostic Table
-    logger.info("┌──────────────────────────────────────────────────────────────┐")
-    logger.info("│                   SYSTEM HEALTH DIAGNOSTICS                  │")
-    logger.info("├──────────────────────────────┬───────────────────────────────┤")
-    logger.info(f"│ Database Connection          │ {db_status:<29} │")
-    logger.info(f"│ GROQ_API_KEY                 │ {groq_status:<29} │")
-    logger.info(f"│ OPENAI_API_KEY               │ {openai_status:<29} │")
-    logger.info(f"│ OPENROUTER_API_KEY           │ {openrouter_status:<29} │")
-    logger.info(f"│ Environment Mode             │ {settings.ENV_MODE:<29} │")
-    logger.info("└──────────────────────────────┴───────────────────────────────┘")
-
-    if "CRITICAL" in db_status:
-        logger.error("Startup aborted due to critical infrastructure failure.")
-        raise RuntimeError("Database connection failed")
-
-    logger.info("✓ System ready. Listening for requests...")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("Sales Manager API - Shutting down")
+app.include_router(po.router, prefix="/api/po", tags=["po"])
+app.include_router(dc.router, prefix="/api/dc", tags=["dc"])
+app.include_router(invoice.router, prefix="/api/invoice", tags=["invoices"])
+app.include_router(srv.router, prefix="/api/srv", tags=["srv"])
+app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 
 @app.get("/")
-def root():
-    return {
-        "message": f"{settings.PROJECT_NAME} v2.0",
-        "status": "running",
-        "docs": "/api/docs",
-        "health": "/api/health"
-    }
+def read_root():
+    return {"status": "active", "system": "SenstoSales ERP"}

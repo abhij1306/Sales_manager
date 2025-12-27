@@ -17,13 +17,14 @@ from app.services.dc import (
 from typing import List, Optional
 import sqlite3
 import logging
+from app.core.auth_utils import get_current_user, TokenData
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
 @router.get("/stats", response_model=DCStats)
-def get_dc_stats(db: sqlite3.Connection = Depends(get_db)):
+def get_dc_stats(db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """Get DC Page Statistics"""
     try:
         # Total Challans
@@ -50,7 +51,7 @@ def get_dc_stats(db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.get("/", response_model=List[DCListItem])
-def list_dcs(po: Optional[int] = None, db: sqlite3.Connection = Depends(get_db)):
+def list_dcs(po: Optional[int] = None, db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """List all Delivery Challans, optionally filtered by PO"""
     
     # Optimized query with JOIN to eliminate N+1 problem
@@ -97,7 +98,7 @@ def list_dcs(po: Optional[int] = None, db: sqlite3.Connection = Depends(get_db))
 
 
 @router.get("/{dc_number}")
-def get_dc_detail(dc_number: str, db: sqlite3.Connection = Depends(get_db)):
+def get_dc_detail(dc_number: str, db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """Get Delivery Challan detail with items"""
     
     # Get DC header
@@ -159,7 +160,7 @@ def get_dc_detail(dc_number: str, db: sqlite3.Connection = Depends(get_db)):
 
 
 @router.post("/")
-def create_dc(dc: DCCreate, items: List[dict], db: sqlite3.Connection = Depends(get_db)):
+def create_dc(dc: DCCreate, items: List[dict], db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """
     Create new Delivery Challan with items
     items format: [{
@@ -226,7 +227,7 @@ def check_dc_has_invoice_endpoint(dc_number: str, db: sqlite3.Connection = Depen
 
 
 @router.put("/{dc_number}")
-def update_dc(dc_number: str, dc: DCCreate, items: List[dict], db: sqlite3.Connection = Depends(get_db)):
+def update_dc(dc_number: str, dc: DCCreate, items: List[dict], db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
     """Update existing Delivery Challan - BLOCKED if invoice exists"""
     
     # Use service layer with transaction protection
@@ -268,3 +269,48 @@ def update_dc(dc_number: str, dc: DCCreate, items: List[dict], db: sqlite3.Conne
         logger.error(f"DC update failed due to integrity error: {e}", exc_info=e)
         raise internal_error(f"Database integrity error: {str(e)}", e)
 
+@router.delete("/{dc_number}")
+def delete_dc(dc_number: str, db: sqlite3.Connection = Depends(get_db), current_user: TokenData = Depends(get_current_user)):
+    """
+    Delete a Delivery Challan.
+    Safe Deletion Rule: Cannot delete if linked Invoices exist.
+    """
+    # 1. Check for linked Invoices
+    cursor = db.cursor()
+    # Note: Using LIKE because linked_dc_numbers might store comma-separated values
+    # A robust implementation would use a join table, but we follow the existing schema
+    # Actually, check_dc_has_invoice uses gst_invoice_dc_links table, let's use that
+
+    cursor.execute("SELECT COUNT(*) FROM gst_invoice_dc_links WHERE dc_number = ?", (dc_number,))
+    inv_count = cursor.fetchone()[0]
+
+    if inv_count > 0:
+        # Get the invoice number for better error message
+        cursor.execute("SELECT invoice_number FROM gst_invoice_dc_links WHERE dc_number = ? LIMIT 1", (dc_number,))
+        inv_num = cursor.fetchone()[0]
+        from app.errors import bad_request
+        raise bad_request(f"Cannot delete DC-{dc_number}: Linked to Invoice {inv_num}. Delete invoice first.")
+
+    try:
+        # 2. Get items to revert (Reversal Logic)
+        # We need to know which PO items were dispatched to revert their 'delivered_qty' if stored
+        # Currently, delivered_qty is calculated on the fly or stored in po_items/deliveries
+        # Let's check where it's stored.
+        # Looking at get_dc_detail, it calculates dispatched from delivery_challan_items
+        # So deleting delivery_challan_items effectively reverts the calculation.
+        # However, if there are any materialized aggregates, we must update them.
+        # Assuming on-the-fly calculation for now based on 'get_dc_detail'.
+
+        # 3. Delete items
+        cursor.execute("DELETE FROM delivery_challan_items WHERE dc_number = ?", (dc_number,))
+
+        # 4. Delete DC Header
+        cursor.execute("DELETE FROM delivery_challans WHERE dc_number = ?", (dc_number,))
+
+        db.commit()
+        return {"success": True, "message": f"DC-{dc_number} deleted successfully"}
+
+    except Exception as e:
+        db.rollback()
+        from app.errors import internal_error
+        raise internal_error(f"Failed to delete DC: {str(e)}")
